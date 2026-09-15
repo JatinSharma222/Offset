@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/risk-engine",
+    "crates/execution",
+    "crates/data",
+    "crates/replay",
+    "crates/server",
+]

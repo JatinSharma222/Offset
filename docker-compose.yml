@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: Offset-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-Offset}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Offset}
+      POSTGRES_DB: ${POSTGRES_DB:-Offset}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-Offset} -d ${POSTGRES_DB:-Offset}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: Offset-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Deliberately no volume. Redis is transport, not storage.
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: Offset-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://Offset:Offset@postgres:5432/Offset}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      RUST_LOG: ${RUST_LOG:-info,Offset=debug}
+      HYPERLIQUID_ENV: ${HYPERLIQUID_ENV:-testnet}
+      HYPERLIQUID_API_URL: ${HYPERLIQUID_API_URL:-https://api.hyperliquid-testnet.xyz}
+      HYPERLIQUID_AGENT_PRIVATE_KEY: ${HYPERLIQUID_AGENT_PRIVATE_KEY:-}
+      HYPERLIQUID_ACCOUNT_ADDRESS: ${HYPERLIQUID_ACCOUNT_ADDRESS:-}
+      SOLANA_RPC_URL: ${SOLANA_RPC_URL:-}
+      PRICE_API_URL: ${PRICE_API_URL:-https://api.coingecko.com/api/v3}
+      LOOP_INTERVAL_SECS: ${LOOP_INTERVAL_SECS:-5}
+      MIN_HEDGE_ADJUSTMENT_USD: ${MIN_HEDGE_ADJUSTMENT_USD:-100}
+      MAX_TOTAL_NOTIONAL_USD: ${MAX_TOTAL_NOTIONAL_USD:-10000000}
+      MAX_SINGLE_ORDER_USD: ${MAX_SINGLE_ORDER_USD:-1000000}
+      MAX_PRICE_STALENESS_SECS: ${MAX_PRICE_STALENESS_SECS:-30}
+      KILL_SWITCH: ${KILL_SWITCH:-false}
+    ports:
+      - "8080:8080"
+    volumes:
+      - cargo_registry:/usr/local/cargo/registry
+      - ./data/fixtures:/app/data/fixtures:ro
+
+  frontend:
+    build:
+      context: ./web
+      dockerfile: ../Dockerfile.frontend
+    container_name: Offset-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_GRAPHQL_HTTP: ${VITE_GRAPHQL_HTTP:-http://localhost:8080/graphql}
+      VITE_GRAPHQL_WS: ${VITE_GRAPHQL_WS:-ws://localhost:8080/graphql}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web/src:/app/src
+      - ./web/public:/app/public
+
+volumes:
+  postgres_data:
+  cargo_registry:

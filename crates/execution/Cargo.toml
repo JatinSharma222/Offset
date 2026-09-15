@@ -1,0 +1,21 @@
+[package]
+name = "execution"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+risk-engine = { path = "../risk-engine" }
+rust_decimal = { version = "1.36", features = ["serde-with-str"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+hyperliquid_rust_sdk = { version = "0.6.0", optional = true }
+
+[features]
+default = []
+live = ["dep:hyperliquid_rust_sdk"]

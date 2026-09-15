@@ -1,0 +1,51 @@
+FROM rust:1-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pkg-config libssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- dependency layer -------------------------------------------------------
+COPY Cargo.toml Cargo.lock ./
+COPY crates/risk-engine/Cargo.toml crates/risk-engine/
+COPY crates/execution/Cargo.toml   crates/execution/
+COPY crates/data/Cargo.toml        crates/data/
+COPY crates/replay/Cargo.toml      crates/replay/
+COPY crates/server/Cargo.toml      crates/server/
+
+RUN mkdir -p crates/risk-engine/src crates/execution/src crates/data/src \
+             crates/replay/src crates/server/src \
+    && echo "" > crates/risk-engine/src/lib.rs \
+    && echo "" > crates/execution/src/lib.rs \
+    && echo "" > crates/data/src/lib.rs \
+    && echo "" > crates/replay/src/lib.rs \
+    && echo "fn main() {}" > crates/server/src/main.rs \
+    && cargo build --release -p Offset-server \
+    && rm -rf crates/*/src
+
+# --- source layer -----------------------------------------------------------
+COPY crates crates
+
+# Touch so cargo rebuilds the workspace crates rather than reusing the stubs.
+RUN find crates -name "*.rs" -exec touch {} + \
+    && cargo build --release -p Offset-server
+
+# --- runtime ----------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 10001 Offset
+
+COPY --from=builder /app/target/release/Offset-server /usr/local/bin/Offset-server
+COPY crates/server/migrations /app/migrations
+
+USER Offset
+
+EXPOSE 8080
+
+CMD ["Offset-server"]

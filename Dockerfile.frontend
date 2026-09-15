@@ -1,0 +1,27 @@
+FROM oven/bun:1 AS base
+WORKDIR /app
+
+# --- dependencies -----------------------------------------------------------
+FROM base AS deps
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
+
+# --- development ------------------------------------------------------------
+# Default target. web/src is bind-mounted in compose so Vite HMR works
+# without rebuilding the image.
+FROM base AS dev
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+EXPOSE 5173
+CMD ["bun", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# --- production build -------------------------------------------------------
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN bun run build
+
+FROM nginx:alpine AS production
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
