@@ -1,34 +1,20 @@
-pub mod config;
-pub mod db;
-pub mod mutation;
-pub mod orchestration;
-pub mod query;
-pub mod redis;
-pub mod schema;
-pub mod state;
-pub mod subscription;
-
-use async_graphql::{http::GraphiQLSource, Schema};
+use async_graphql::http::GraphiQLSource;
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse, GraphQLSubscription};
 use axum::{
     response::{self, IntoResponse},
     routing::get,
     Extension, Router,
 };
-use config::ServerConfig;
 use data::HistoricalScenario;
 use execution::SimulatedExecutor;
-use mutation::MutationRoot;
-use query::QueryRoot;
-use state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use subscription::SubscriptionRoot;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-pub type AppSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
+use Offset_server::config::ServerConfig;
+use Offset_server::state::AppState;
+use Offset_server::*;
 
 async fn graphiql() -> impl IntoResponse {
     response::Html(
@@ -133,9 +119,7 @@ async fn main() -> anyhow::Result<()> {
     orchestration::start_orchestration_loop(state.clone());
 
     // 7. Construct GraphQL Schema
-    let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
-        .data(state.clone())
-        .finish();
+    let schema = build_schema(state.clone());
 
     let cors = CorsLayer::new()
         .allow_origin(Any)

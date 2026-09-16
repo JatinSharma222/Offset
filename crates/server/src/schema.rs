@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum RiskLevelGql {
     Healthy,
     Warning,
@@ -33,7 +33,7 @@ impl From<RiskLevelGql> for risk_engine::RiskLevel {
     }
 }
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExecutionStatusGql {
     Filled,
     PartiallyFilled,
