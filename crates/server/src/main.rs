@@ -1,8 +1,11 @@
+pub mod config;
 pub mod db;
 pub mod mutation;
+pub mod orchestration;
 pub mod query;
 pub mod redis;
 pub mod schema;
+pub mod state;
 pub mod subscription;
 
 use async_graphql::{http::GraphiQLSource, Schema};
@@ -12,13 +15,17 @@ use axum::{
     routing::get,
     Extension, Router,
 };
+use config::ServerConfig;
+use data::HistoricalScenario;
+use execution::SimulatedExecutor;
 use mutation::MutationRoot;
 use query::QueryRoot;
-use std::env;
+use state::AppState;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use subscription::SubscriptionRoot;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::info;
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
@@ -27,7 +34,7 @@ async fn graphiql() -> impl IntoResponse {
     response::Html(
         GraphiQLSource::build()
             .endpoint("/graphql")
-            .subscription_endpoint("/graphql")
+            .subscription_endpoint("/graphql/ws")
             .finish(),
     )
 }
@@ -46,9 +53,89 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    info!("Starting Offset risk defense server");
+    info!("============================================================");
+    info!("          OFFSET AUTOMATED LIQUIDATION DEFENSE              ");
+    info!("============================================================");
 
-    let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot).finish();
+    // 1. Load typed configuration
+    let config = ServerConfig::from_env();
+    info!(
+        "Configuration: loop={}s, min_adjust=${}, max_notional=${}",
+        config.loop_interval_secs,
+        config.min_hedge_adjustment_usd,
+        config.safety.max_total_notional
+    );
+
+    // 2. Initialize Database connection & run migrations
+    let db_pool = match db::init_pool(&config.database_url).await {
+        Ok(pool) => {
+            info!(
+                "Connected to PostgreSQL database at {}",
+                config.database_url
+            );
+            match db::run_migrations(&pool).await {
+                Ok(_) => info!("Database migrations applied successfully"),
+                Err(e) => error!("Database migration error: {:?}", e),
+            }
+
+            // Seed historical scenarios if not present
+            let scn = HistoricalScenario::solend_whale_2022();
+            if let Err(e) = db::upsert_scenario(&pool, &scn).await {
+                warn!("Failed to seed scenario in database: {:?}", e);
+            }
+            Some(pool)
+        }
+        Err(e) => {
+            warn!(
+                "Could not connect to PostgreSQL ({:?}). Running with in-memory state only.",
+                e
+            );
+            None
+        }
+    };
+
+    // 3. Initialize Redis client
+    let redis_client = match redis::init_client(&config.redis_url) {
+        Ok(client) => {
+            info!("Initialized Redis client for URL: {}", config.redis_url);
+            Some(client)
+        }
+        Err(e) => {
+            warn!(
+                "Could not initialize Redis client ({:?}). Using in-process broadcast.",
+                e
+            );
+            None
+        }
+    };
+
+    // 4. Initialize Position & Executor
+    let initial_scenario = HistoricalScenario::solend_whale_2022();
+    let initial_position = initial_scenario.initial_position();
+    let initial_price = initial_scenario
+        .prices
+        .first()
+        .map(|p| p.price)
+        .unwrap_or_default();
+
+    let executor = Arc::new(SimulatedExecutor::new(initial_price));
+
+    // 5. Build AppState
+    let state = AppState::new(
+        config.clone(),
+        db_pool,
+        redis_client,
+        executor,
+        initial_position,
+    );
+
+    // 6. Spawn Orchestration Loop
+    orchestration::start_orchestration_loop(state.clone());
+
+    // 7. Construct GraphQL Schema
+    let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
+        .data(state.clone())
+        .finish();
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -61,14 +148,10 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .layer(Extension(schema));
 
-    let port: u16 = env::var("SERVER_PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse()
-        .unwrap_or(8080);
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     info!("Server listening on http://{}", addr);
     info!("GraphQL Playground: http://{}/graphql", addr);
+    info!("WebSocket Subscriptions: ws://{}/graphql/ws", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;

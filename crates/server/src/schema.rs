@@ -1,8 +1,9 @@
 use async_graphql::{Enum, InputObject, SimpleObject};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum RiskLevelGql {
     Healthy,
     Warning,
@@ -32,7 +33,7 @@ impl From<RiskLevelGql> for risk_engine::RiskLevel {
     }
 }
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ExecutionStatusGql {
     Filled,
     PartiallyFilled,
@@ -40,7 +41,7 @@ pub enum ExecutionStatusGql {
     Failed,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct RiskSnapshotGql {
     pub id: String,
     pub timestamp: DateTime<Utc>,
@@ -58,19 +59,19 @@ pub struct RiskSnapshotGql {
     pub target_hedge: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct BookLevelGql {
     pub price: Decimal,
     pub size: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct BookSnapshotGql {
     pub bids: Vec<BookLevelGql>,
     pub asks: Vec<BookLevelGql>,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ExecutionRecordGql {
     pub id: String,
     pub timestamp: DateTime<Utc>,
@@ -87,7 +88,7 @@ pub struct ExecutionRecordGql {
     pub book_snapshot: Option<BookSnapshotGql>,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ProtectionImpactGql {
     pub loss_avoided: Decimal,
     pub bad_debt_reduction_pct: Decimal,
@@ -95,7 +96,7 @@ pub struct ProtectionImpactGql {
     pub hedge_cost: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct OutcomeSummaryGql {
     pub liquidation_penalties: Decimal,
     pub bad_debt: Decimal,
@@ -105,7 +106,7 @@ pub struct OutcomeSummaryGql {
     pub net_loss: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ReplayTickGql {
     pub timestamp: DateTime<Utc>,
     pub price: Decimal,
@@ -116,7 +117,7 @@ pub struct ReplayTickGql {
     pub cumulative_funding: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ReplayResultGql {
     pub scenario: String,
     pub source_note: String,
@@ -126,20 +127,20 @@ pub struct ReplayResultGql {
     pub impact: ProtectionImpactGql,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct HedgeTierGql {
     pub minimum_distance: Decimal,
     pub hedge_ratio: Decimal,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct RiskPolicyGql {
     pub warning: HedgeTierGql,
     pub danger: HedgeTierGql,
     pub critical: HedgeTierGql,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ExecutionStatusInfoGql {
     pub connected: bool,
     pub trading_permission: bool,
@@ -149,7 +150,7 @@ pub struct ExecutionStatusInfoGql {
     pub kill_switch_active: bool,
 }
 
-#[derive(SimpleObject, Clone)]
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ScenarioGql {
     pub id: String,
     pub name: String,

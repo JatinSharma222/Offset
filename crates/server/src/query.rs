@@ -1,4 +1,6 @@
+use crate::db;
 use crate::schema::*;
+use crate::state::AppState;
 use async_graphql::{Context, Object, Result};
 use chrono::{DateTime, Utc};
 use data::HistoricalScenario;
@@ -11,17 +13,36 @@ pub struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
-    async fn current_snapshot(&self, _ctx: &Context<'_>) -> Result<Option<RiskSnapshotGql>> {
-        let scn = HistoricalScenario::solend_whale_2022();
-        let pos = scn.initial_position();
-        let policy = RiskPolicy::default();
+    async fn current_snapshot(&self, ctx: &Context<'_>) -> Result<Option<RiskSnapshotGql>> {
+        let state = ctx.data::<AppState>()?;
+
+        // 1. Check in-memory snapshot first
+        if let Some(snap) = state.latest_snapshot.read().await.clone() {
+            return Ok(Some(snap));
+        }
+
+        // 2. Check DB if pool is available
+        if let Some(pool) = &state.db_pool {
+            if let Ok(Some(db_snap)) = db::get_latest_snapshot(pool).await {
+                return Ok(Some(db_snap));
+            }
+        }
+
+        // 3. Fallback: evaluate current position directly
+        let pos = state.current_position.read().await.clone();
+        let policy = state.policy.read().await.clone();
         let snap = evaluate_position(&pos, "SOL", &policy);
-        let first_price = scn.prices.first().map(|p| p.price).unwrap_or(Decimal::ZERO);
+        let sol_price = pos
+            .collateral
+            .iter()
+            .find(|c| c.asset == "SOL")
+            .map(|c| c.price)
+            .unwrap_or(Decimal::ZERO);
 
         Ok(Some(RiskSnapshotGql {
             id: Uuid::new_v4().to_string(),
             timestamp: Utc::now(),
-            price: first_price,
+            price: sol_price,
             collateral_value: snap.collateral_value,
             risk_adjusted_collateral: snap.risk_adjusted_collateral,
             debt_value: snap.debt_value,
@@ -38,51 +59,90 @@ impl QueryRoot {
 
     async fn snapshots(
         &self,
-        _ctx: &Context<'_>,
-        _since: Option<DateTime<Utc>>,
-        _limit: Option<i32>,
+        ctx: &Context<'_>,
+        since: Option<DateTime<Utc>>,
+        limit: Option<i32>,
     ) -> Result<Vec<RiskSnapshotGql>> {
-        Ok(vec![])
+        let state = ctx.data::<AppState>()?;
+        let limit = limit.unwrap_or(500) as i64;
+
+        if let Some(pool) = &state.db_pool {
+            match db::get_snapshots(pool, since, limit).await {
+                Ok(snapshots) => return Ok(snapshots),
+                Err(e) => tracing::warn!("Failed to query snapshots from database: {:?}", e),
+            }
+        }
+
+        if let Some(snap) = state.latest_snapshot.read().await.clone() {
+            Ok(vec![snap])
+        } else {
+            Ok(vec![])
+        }
     }
 
     async fn executions(
         &self,
-        _ctx: &Context<'_>,
-        _limit: Option<i32>,
+        ctx: &Context<'_>,
+        limit: Option<i32>,
     ) -> Result<Vec<ExecutionRecordGql>> {
+        let state = ctx.data::<AppState>()?;
+        let limit = limit.unwrap_or(100) as i64;
+
+        if let Some(pool) = &state.db_pool {
+            match db::get_executions(pool, limit).await {
+                Ok(records) => return Ok(records),
+                Err(e) => tracing::warn!("Failed to query executions from database: {:?}", e),
+            }
+        }
+
         Ok(vec![])
     }
 
-    async fn policy(&self, _ctx: &Context<'_>) -> Result<RiskPolicyGql> {
-        let def = RiskPolicy::default();
+    async fn policy(&self, ctx: &Context<'_>) -> Result<RiskPolicyGql> {
+        let state = ctx.data::<AppState>()?;
+        let pol = state.policy.read().await.clone();
+
         Ok(RiskPolicyGql {
             warning: HedgeTierGql {
-                minimum_distance: def.warning.minimum_distance,
-                hedge_ratio: def.warning.hedge_ratio,
+                minimum_distance: pol.warning.minimum_distance,
+                hedge_ratio: pol.warning.hedge_ratio,
             },
             danger: HedgeTierGql {
-                minimum_distance: def.danger.minimum_distance,
-                hedge_ratio: def.danger.hedge_ratio,
+                minimum_distance: pol.danger.minimum_distance,
+                hedge_ratio: pol.danger.hedge_ratio,
             },
             critical: HedgeTierGql {
-                minimum_distance: def.critical.minimum_distance,
-                hedge_ratio: def.critical.hedge_ratio,
+                minimum_distance: pol.critical.minimum_distance,
+                hedge_ratio: pol.critical.hedge_ratio,
             },
         })
     }
 
-    async fn execution_status(&self, _ctx: &Context<'_>) -> Result<ExecutionStatusInfoGql> {
+    async fn execution_status(&self, ctx: &Context<'_>) -> Result<ExecutionStatusInfoGql> {
+        let state = ctx.data::<AppState>()?;
+        let safety = state.safety_config.read().await.clone();
+
         Ok(ExecutionStatusInfoGql {
             connected: true,
             trading_permission: true,
             withdraw_permission: false, // Structurally false - Pitch core feature
-            account_address: Some("0x1234...5678".to_string()),
+            account_address: Some("0x84Ae...01Cd (Offset Agent Wallet)".to_string()),
             margin_available: Some(Decimal::new(1_000_000, 0)),
-            kill_switch_active: false,
+            kill_switch_active: safety.kill_switch,
         })
     }
 
-    async fn scenarios(&self, _ctx: &Context<'_>) -> Result<Vec<ScenarioGql>> {
+    async fn scenarios(&self, ctx: &Context<'_>) -> Result<Vec<ScenarioGql>> {
+        let state = ctx.data::<AppState>()?;
+
+        if let Some(pool) = &state.db_pool {
+            if let Ok(scenarios) = db::get_scenarios(pool).await {
+                if !scenarios.is_empty() {
+                    return Ok(scenarios);
+                }
+            }
+        }
+
         let scn = HistoricalScenario::solend_whale_2022();
         Ok(vec![ScenarioGql {
             id: scn.id,
@@ -92,7 +152,8 @@ impl QueryRoot {
         }])
     }
 
-    async fn replay(&self, _ctx: &Context<'_>, scenario_id: String) -> Result<ReplayResultGql> {
+    async fn replay(&self, ctx: &Context<'_>, scenario_id: String) -> Result<ReplayResultGql> {
+        let state = ctx.data::<AppState>()?;
         let scn = if scenario_id == "solend-whale-2022" {
             HistoricalScenario::solend_whale_2022()
         } else {
@@ -102,7 +163,7 @@ impl QueryRoot {
             )));
         };
 
-        let policy = RiskPolicy::default();
+        let policy: RiskPolicy = state.policy.read().await.clone();
         let res = run_replay(&scn, &policy).await;
 
         let ticks = res

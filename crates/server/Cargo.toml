@@ -13,10 +13,10 @@ axum = "0.8"
 async-graphql = { version = "7", features = ["chrono", "decimal", "uuid"] }
 async-graphql-axum = "7"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["time"] }
+tokio-stream = { version = "0.1", features = ["time", "sync"] }
 futures-util = "0.3"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "rust_decimal", "macros"] }
-redis = { version = "0.27", features = ["tokio-comp"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "chrono", "uuid", "rust_decimal", "macros", "migrate"] }
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
