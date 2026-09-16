@@ -30,6 +30,21 @@ mod tests {
         assert!(rec2.note.unwrap().contains("no-op"));
     }
 
+    #[tokio::test]
+    async fn test_hyperliquid_executor_idempotency() {
+        let hl = HyperliquidExecutor::new(HyperliquidConfig::default());
+        let target = Decimal::new(7500, 0);
+
+        let rec1 = hl.adjust_hedge(target).await.unwrap();
+        assert_eq!(rec1.filled_notional, target);
+        assert!(rec1.cloid.is_some());
+
+        // Second call with same target is guaranteed no-op
+        let rec2 = hl.adjust_hedge(target).await.unwrap();
+        assert_eq!(rec2.filled_notional, target);
+        assert!(rec2.note.unwrap().contains("no-op"));
+    }
+
     #[test]
     fn test_safety_rails_max_notional() {
         let config = SafetyConfig {
@@ -69,6 +84,47 @@ mod tests {
         );
 
         assert!(matches!(res, Err(SafetyViolation::StalePrice { .. })));
+    }
+
+    #[test]
+    fn test_safety_rails_max_single_order() {
+        let config = SafetyConfig {
+            max_single_order: Decimal::new(1000, 0),
+            ..Default::default()
+        };
+
+        let res = check_pre_trade(
+            Decimal::new(5000, 0),
+            Decimal::new(2500, 0),
+            5,
+            Decimal::new(50000, 0),
+            Decimal::new(1000, 0),
+            &config,
+        );
+
+        assert!(matches!(
+            res,
+            Err(SafetyViolation::MaxSingleOrderExceeded { .. })
+        ));
+    }
+
+    #[test]
+    fn test_safety_rails_insufficient_margin() {
+        let config = SafetyConfig::default();
+
+        let res = check_pre_trade(
+            Decimal::new(5000, 0),
+            Decimal::new(1000, 0),
+            5,
+            Decimal::new(500, 0),  // available
+            Decimal::new(1000, 0), // required
+            &config,
+        );
+
+        assert!(matches!(
+            res,
+            Err(SafetyViolation::InsufficientMargin { .. })
+        ));
     }
 
     #[test]
