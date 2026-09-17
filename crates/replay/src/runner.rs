@@ -78,6 +78,166 @@ impl ReplayResult {
     pub fn save_csv(&self, path: &Path) -> std::io::Result<()> {
         std::fs::write(path, self.to_csv())
     }
+
+    /// Formats the side-by-side outcome comparison table.
+    pub fn format_comparison_table(&self) -> String {
+        use std::fmt::Write;
+        let mut out = String::new();
+        let sep_double = "=".repeat(100);
+        let sep_single = "-".repeat(100);
+
+        let _ = writeln!(out, "{}", sep_double);
+        let _ = writeln!(out, " SCENARIO: {}", self.scenario);
+        let _ = writeln!(out, " PROVENANCE: {}", self.source_note);
+        let _ = writeln!(out, "{}", sep_double);
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "METRIC", "WITHOUT HEDGE", "WITH OFFSET HEDGE", "DIFFERENCE"
+        );
+        let _ = writeln!(out, "{}", sep_single);
+
+        let pen_diff =
+            self.with_hedge.liquidation_penalties - self.without_hedge.liquidation_penalties;
+        let bd_diff = self.with_hedge.bad_debt - self.without_hedge.bad_debt;
+        let pnl_diff = self.with_hedge.hedge_pnl - self.without_hedge.hedge_pnl;
+        let slip_diff = self.with_hedge.slippage_cost - self.without_hedge.slippage_cost;
+        let fund_diff = self.with_hedge.funding_cost - self.without_hedge.funding_cost;
+        let net_diff = self.with_hedge.net_loss - self.without_hedge.net_loss;
+
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "Liquidation Penalties",
+            format!("${:.2}", self.without_hedge.liquidation_penalties),
+            format!("${:.2}", self.with_hedge.liquidation_penalties),
+            format!("${:.2}", pen_diff)
+        );
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "Protocol Bad Debt",
+            format!("${:.2}", self.without_hedge.bad_debt),
+            format!("${:.2}", self.with_hedge.bad_debt),
+            format!("${:.2}", bd_diff)
+        );
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "Hedge Realized P&L",
+            format!("${:.2}", self.without_hedge.hedge_pnl),
+            format!("${:.2}", self.with_hedge.hedge_pnl),
+            format!("+${:.2}", pnl_diff)
+        );
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "Execution Slippage Cost",
+            format!("${:.2}", self.without_hedge.slippage_cost),
+            format!("${:.2}", self.with_hedge.slippage_cost),
+            format!("+${:.2}", slip_diff)
+        );
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "Funding Cost (Carry)",
+            format!("${:.2}", self.without_hedge.funding_cost),
+            format!("${:.2}", self.with_hedge.funding_cost),
+            format!("+${:.2}", fund_diff)
+        );
+        let _ = writeln!(out, "{}", sep_single);
+        let _ = writeln!(
+            out,
+            " {:<35} | {:>18} | {:>18} | {:>18}",
+            "TOTAL NET PROTOCOL LOSS",
+            format!("${:.2}", self.without_hedge.net_loss),
+            format!("${:.2}", self.with_hedge.net_loss),
+            format!("${:.2}", net_diff)
+        );
+        let _ = writeln!(out, "{}", sep_double);
+        let _ = writeln!(out, " PROTECTION IMPACT SUMMARY");
+        let _ = writeln!(
+            out,
+            " • Net Loss Avoided:       ${:.2} (net of funding & slippage overhead)",
+            self.impact.loss_avoided
+        );
+        let _ = writeln!(
+            out,
+            " • Bad Debt Reduction:     {:.2}%",
+            self.impact.bad_debt_reduction_pct
+        );
+        let _ = writeln!(
+            out,
+            " • Liquidations Prevented: {} event(s)",
+            self.impact.liquidations_prevented
+        );
+        let _ = writeln!(
+            out,
+            " • Total Hedge Overhead:   ${:.2}",
+            self.impact.hedge_cost
+        );
+        let _ = writeln!(out, "{}", sep_double);
+
+        out
+    }
+
+    /// Formats the chronological replay ticks into a structured ASCII timeline table.
+    pub fn format_ticks_table(&self) -> String {
+        use std::fmt::Write;
+        let mut out = String::new();
+        let sep = "=".repeat(110);
+        let _ = writeln!(out, "{}", sep);
+        let _ = writeln!(
+            out,
+            " {:<20} | {:>8} | {:>7} | {:>9} | {:>8} | {:>9} | {:>10} | {:>10} | {:>10}",
+            "TIMESTAMP",
+            "PRICE",
+            "HF",
+            "LIQ PRICE",
+            "DISTANCE",
+            "RISK",
+            "HEDGE POS",
+            "HEDGE PNL",
+            "FUNDING"
+        );
+        let _ = writeln!(out, "{}", sep);
+
+        for tick in &self.ticks {
+            let hf_str = tick
+                .snapshot
+                .health_factor
+                .map(|v| format!("{:.3}", v))
+                .unwrap_or_else(|| "N/A".to_string());
+            let lp_str = tick
+                .snapshot
+                .liquidation_price
+                .map(|v| format!("${:.2}", v))
+                .unwrap_or_else(|| "N/A".to_string());
+            let dist_str = tick
+                .snapshot
+                .liquidation_distance
+                .map(|v| format!("{:.1}%", v * Decimal::from(100)))
+                .unwrap_or_else(|| "N/A".to_string());
+
+            let ts_str = tick.timestamp.format("%Y-%m-%d %H:%M").to_string();
+
+            let _ = writeln!(
+                out,
+                " {:<20} | {:>8} | {:>7} | {:>9} | {:>8} | {:>9} | {:>10} | {:>10} | {:>10}",
+                ts_str,
+                format!("${:.2}", tick.price),
+                hf_str,
+                lp_str,
+                dist_str,
+                format!("{:?}", tick.snapshot.risk_level),
+                format!("${:.0}", tick.hedge_position),
+                format!("${:.0}", tick.hedge_pnl),
+                format!("${:.1}", tick.cumulative_funding)
+            );
+        }
+        let _ = writeln!(out, "{}", sep);
+        out
+    }
 }
 
 pub async fn run_replay(scenario: &HistoricalScenario, policy: &RiskPolicy) -> ReplayResult {

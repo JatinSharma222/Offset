@@ -49,4 +49,20 @@ mod tests {
         let whipsaw_result = run_replay(&whipsaw, &policy).await;
         assert_eq!(whipsaw_result.ticks.len(), 13);
     }
+
+    #[tokio::test]
+    async fn test_replay_table_formatting() {
+        let scenario = HistoricalScenario::solend_whale_2022();
+        let policy = RiskPolicy::default();
+        let result = run_replay(&scenario, &policy).await;
+
+        let comp_table = result.format_comparison_table();
+        assert!(comp_table.contains("SCENARIO: Solend Whale"));
+        assert!(comp_table.contains("Liquidation Penalties"));
+        assert!(comp_table.contains("PROTECTION IMPACT SUMMARY"));
+
+        let ticks_table = result.format_ticks_table();
+        assert!(ticks_table.contains("TIMESTAMP"));
+        assert!(ticks_table.contains("HEDGE POS"));
+    }
 }
