@@ -139,8 +139,10 @@ export const RUN_REPLAY = gql`
       }
       impact {
         lossAvoided
+        damageOffsetPct
         badDebtReductionPct
         liquidationsPrevented
+        onChainLiquidationsAbsorbed
         hedgeCost
       }
     }

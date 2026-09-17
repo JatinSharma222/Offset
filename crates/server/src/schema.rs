@@ -91,8 +91,10 @@ pub struct ExecutionRecordGql {
 #[derive(SimpleObject, Clone, Serialize, Deserialize)]
 pub struct ProtectionImpactGql {
     pub loss_avoided: Decimal,
+    pub damage_offset_pct: Decimal,
     pub bad_debt_reduction_pct: Decimal,
     pub liquidations_prevented: i32,
+    pub on_chain_liquidations_absorbed: i32,
     pub hedge_cost: Decimal,
 }
 

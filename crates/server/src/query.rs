@@ -253,8 +253,10 @@ impl QueryRoot {
             },
             impact: ProtectionImpactGql {
                 loss_avoided: res.impact.loss_avoided,
+                damage_offset_pct: res.impact.damage_offset_pct,
                 bad_debt_reduction_pct: res.impact.bad_debt_reduction_pct,
                 liquidations_prevented: res.impact.liquidations_prevented as i32,
+                on_chain_liquidations_absorbed: res.impact.on_chain_liquidations_absorbed as i32,
                 hedge_cost: res.impact.hedge_cost,
             },
         })

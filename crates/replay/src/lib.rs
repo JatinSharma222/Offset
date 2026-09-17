@@ -60,6 +60,11 @@ mod tests {
         assert!(comp_table.contains("SCENARIO: Solend Whale"));
         assert!(comp_table.contains("Liquidation Penalties"));
         assert!(comp_table.contains("PROTECTION IMPACT SUMMARY"));
+        assert!(comp_table.contains("Financial Damage Offset"));
+        assert!(comp_table.contains("Liquidations Absorbed"));
+
+        assert!(result.impact.damage_offset_pct > rust_decimal::Decimal::ZERO);
+        assert_eq!(result.impact.on_chain_liquidations_absorbed, 1);
 
         let ticks_table = result.format_ticks_table();
         assert!(ticks_table.contains("TIMESTAMP"));

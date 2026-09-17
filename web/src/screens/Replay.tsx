@@ -306,10 +306,12 @@ export const ReplayScreen: React.FC = () => {
 
       {/* Impact verification banner */}
       <ImpactPanel
-        lossAvoided={replay ? parseFloat(replay.impact.lossAvoided) : 20_500_000}
+        lossAvoided={replay ? parseFloat(replay.impact.lossAvoided) : 12_651_218}
+        damageOffsetPct={replay ? parseFloat(replay.impact.damageOffsetPct || '100') : 100}
         badDebtReductionPct={replay ? parseFloat(replay.impact.badDebtReductionPct) : 100}
-        liquidationsPrevented={replay ? replay.impact.liquidationsPrevented : 4}
-        hedgeCost={replay ? parseFloat(replay.impact.hedgeCost) : 185_400}
+        liquidationsPrevented={replay ? replay.impact.liquidationsPrevented : 0}
+        onChainLiquidationsAbsorbed={replay ? replay.impact.onChainLiquidationsAbsorbed : 1}
+        hedgeCost={replay ? parseFloat(replay.impact.hedgeCost) : 372_096}
       />
     </div>
   );
