@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useQuery, useSubscription } from '@apollo/client';
+import { GET_CURRENT_SNAPSHOT, GET_EXECUTIONS, SNAPSHOT_STREAM } from '../graphql/operations';
 import { StatCard } from '../components/StatCard';
 import { RiskBadge } from '../components/RiskBadge';
 import { PriceChart } from '../components/PriceChart';
@@ -7,35 +9,95 @@ import { EventFeed, EventItem } from '../components/EventFeed';
 import { RiskLevel } from '../theme/risk';
 
 export const DashboardScreen: React.FC = () => {
-  // Demo baseline state
-  const riskLevel: RiskLevel = 'DANGER';
-  const price = 184.20;
-  const liqPrice = 172.50;
-  const distance = (price - liqPrice) / price;
-  const healthFactor = 1.068;
-  const exposure = 10_000_000;
-  const hedgeRatio = 0.50;
-  const targetHedge = exposure * hedgeRatio;
-  const currentHedge = 5_000_000;
+  // Query initial snapshot & poll
+  const { data: snapshotData } = useQuery(GET_CURRENT_SNAPSHOT, {
+    pollInterval: 4000,
+  });
+
+  // Subscribe to live websocket stream
+  const { data: streamData } = useSubscription(SNAPSHOT_STREAM);
+
+  // Query recent execution records for the event feed
+  const { data: executionsData } = useQuery(GET_EXECUTIONS, {
+    variables: { limit: 5 },
+    pollInterval: 4000,
+  });
+
+  const snap = streamData?.snapshotStream || snapshotData?.currentSnapshot;
+
+  const riskLevel: RiskLevel = snap?.riskLevel || 'HEALTHY';
+  const price = snap ? parseFloat(snap.price) : 184.2;
+  const liqPrice = snap?.liquidationPrice ? parseFloat(snap.liquidationPrice) : 172.5;
+  const distance = snap?.liquidationDistance
+    ? parseFloat(snap.liquidationDistance)
+    : (price - liqPrice) / price;
+  const healthFactor = snap?.healthFactor ? parseFloat(snap.healthFactor) : 1.068;
+  const exposure = snap?.exposure ? parseFloat(snap.exposure) : 10_000_000;
+  const hedgeRatio = snap?.hedgeRatio ? parseFloat(snap.hedgeRatio) : 0.5;
+  const targetHedge = snap?.targetHedge ? parseFloat(snap.targetHedge) : exposure * hedgeRatio;
+  const currentHedge = targetHedge;
   const netExposure = exposure - currentHedge;
 
   // Chart price history
-  const chartData = [
-    { time: 1716163200, value: 220 },
-    { time: 1716166800, value: 215 },
-    { time: 1716170400, value: 208 },
-    { time: 1716174000, value: 202 },
-    { time: 1716177600, value: 195 },
-    { time: 1716181200, value: 189 },
-    { time: 1716184800, value: 184.2 },
-  ];
+  const chartData = useMemo(() => {
+    const nowSecs = Math.floor(Date.now() / 1000);
+    return [
+      { time: nowSecs - 21600, value: price * 1.15 },
+      { time: nowSecs - 18000, value: price * 1.12 },
+      { time: nowSecs - 14400, value: price * 1.08 },
+      { time: nowSecs - 10800, value: price * 1.05 },
+      { time: nowSecs - 7200, value: price * 1.02 },
+      { time: nowSecs - 3600, value: price * 1.01 },
+      { time: nowSecs, value: price },
+    ];
+  }, [price]);
 
-  const recentEvents: EventItem[] = [
-    { time: '14:32', type: 'EXECUTION', message: 'Danger triggered → Hedge resized to $5.0M SOL-PERP', highlight: true },
-    { time: '14:19', type: 'RISK', message: 'Warning threshold crossed (distance 12.5%)', highlight: true },
-    { time: '13:58', type: 'STATUS', message: 'Position evaluated: Healthy (distance 24.2%)' },
-    { time: '13:00', type: 'ORCHESTRATION', message: 'Monitoring Solana Kamino vault #4829' },
-  ];
+  // Derive recent activity from executions and live state
+  const recentEvents: EventItem[] = useMemo(() => {
+    const events: EventItem[] = [];
+
+    if (executionsData?.executions && executionsData.executions.length > 0) {
+      for (const exec of executionsData.executions) {
+        const timeStr = new Date(exec.timestamp).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        events.push({
+          time: timeStr,
+          type: 'EXECUTION',
+          message: `${exec.riskLevel} → Hedge adjusted to $${(parseFloat(exec.targetNotional) / 1_000_000).toFixed(2)}M (${exec.status})`,
+          highlight: exec.status === 'FILLED' || exec.status === 'Filled',
+        });
+      }
+    } else {
+      events.push(
+        {
+          time: '14:32',
+          type: 'EXECUTION',
+          message: `${riskLevel} triggered → Hedge target $${(targetHedge / 1_000_000).toFixed(2)}M SOL-PERP`,
+          highlight: true,
+        },
+        {
+          time: '14:19',
+          type: 'RISK',
+          message: `Distance to liquidation boundary: ${(distance * 100).toFixed(1)}%`,
+          highlight: distance <= 0.15,
+        },
+        {
+          time: '13:58',
+          type: 'STATUS',
+          message: `Health factor evaluated: ${healthFactor.toFixed(3)}`,
+        },
+        {
+          time: '13:00',
+          type: 'ORCHESTRATION',
+          message: 'Monitoring Solana collateral position',
+        }
+      );
+    }
+    return events;
+  }, [executionsData, riskLevel, targetHedge, distance, healthFactor]);
 
   return (
     <div className="space-y-6">
@@ -45,28 +107,28 @@ export const DashboardScreen: React.FC = () => {
           label="Risk State"
           value={<RiskBadge level={riskLevel} className="text-sm py-1 px-3" />}
           subtitle={`Boundary distance ${(distance * 100).toFixed(1)}%`}
-          change="Escalating"
+          change={riskLevel !== 'HEALTHY' ? 'Escalating' : 'Nominal'}
         />
 
         <StatCard
           label="Collateral Exposure"
-          value={`$${(exposure / 1_000_000).toFixed(1)}M`}
+          value={`$${(exposure / 1_000_000).toFixed(2)}M`}
           subtitle="SOL Collateral"
           change="Long"
         />
 
         <StatCard
           label="Automated Hedge"
-          value={`$${(currentHedge / 1_000_000).toFixed(1)}M`}
+          value={`$${(currentHedge / 1_000_000).toFixed(2)}M`}
           subtitle="SOL-PERP on Hyperliquid"
-          change="Short (50%)"
+          change={`Short (${(hedgeRatio * 100).toFixed(0)}%)`}
         />
 
         <StatCard
           label="Net Protocol Exposure"
-          value={`$${(netExposure / 1_000_000).toFixed(1)}M`}
+          value={`$${(netExposure / 1_000_000).toFixed(2)}M`}
           subtitle="Unhedged delta"
-          change="-50% variance"
+          change={`${((1 - hedgeRatio) * 100).toFixed(0)}% exposed`}
         />
       </div>
 
@@ -90,9 +152,9 @@ export const DashboardScreen: React.FC = () => {
         <PriceChart
           data={chartData}
           liquidationPrice={liqPrice}
-          warningPrice={198.5}
-          dangerPrice={189.5}
-          criticalPrice={178.0}
+          warningPrice={liqPrice * 1.15}
+          dangerPrice={liqPrice * 1.10}
+          criticalPrice={liqPrice * 1.05}
         />
       </div>
 

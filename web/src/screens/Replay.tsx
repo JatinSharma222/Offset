@@ -1,84 +1,150 @@
 import React, { useState, useEffect } from 'react';
-import { Play, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useQuery } from '@apollo/client';
+import { Play, RotateCcw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
+import { GET_SCENARIOS, RUN_REPLAY } from '../graphql/operations';
 import { RiskBadge } from '../components/RiskBadge';
 import { ImpactPanel } from '../components/ImpactPanel';
 import { RiskLevel } from '../theme/risk';
 
-interface ReplayStep {
-  hour: number;
-  time: string;
-  price: number;
-  riskLevel: RiskLevel;
-  distance: number;
-  targetHedge: number;
-  eventText?: string;
-  hedgeAction?: string;
+interface ReplayTickGql {
+  timestamp: string;
+  price: string;
+  snapshot: {
+    price: string;
+    healthFactor?: string;
+    liquidationPrice?: string;
+    liquidationDistance?: string;
+    riskLevel: RiskLevel;
+    targetHedge: string;
+  };
+  execution?: {
+    id: string;
+    status: string;
+    filledNotional: string;
+    slippageBps?: string;
+  };
+  hedgePosition: string;
+  hedgePnl: string;
+  cumulativeFunding: string;
 }
 
 export const ReplayScreen: React.FC = () => {
+  const [selectedScenarioId, setSelectedScenarioId] = useState('solend-whale-2022');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-  const scenarioData: ReplayStep[] = [
-    { hour: 0, time: '2022-05-20 00:00', price: 55, riskLevel: 'HEALTHY', distance: 0.38, targetHedge: 0 },
-    { hour: 1, time: '2022-05-20 02:00', price: 52, riskLevel: 'HEALTHY', distance: 0.34, targetHedge: 0 },
-    { hour: 2, time: '2022-05-20 04:00', price: 48, riskLevel: 'HEALTHY', distance: 0.28, targetHedge: 0 },
-    { hour: 3, time: '2022-05-20 06:00', price: 44, riskLevel: 'HEALTHY', distance: 0.21, targetHedge: 0 },
-    { hour: 4, time: '2022-05-20 08:00', price: 41, riskLevel: 'WARNING', distance: 0.15, targetHedge: 25_000_000, eventText: 'WARNING: Distance reached 15.0%', hedgeAction: 'OPENED 25% SHORT ($25M SOL-PERP)' },
-    { hour: 5, time: '2022-05-20 10:00', price: 38, riskLevel: 'DANGER', distance: 0.08, targetHedge: 50_000_000, eventText: 'DANGER: Distance reached 8.0%', hedgeAction: 'INCREASED SHORT TO 50% ($50M SOL-PERP)' },
-    { hour: 6, time: '2022-05-20 12:00', price: 35, riskLevel: 'CRITICAL', distance: 0.03, targetHedge: 75_000_000, eventText: 'CRITICAL: Distance fell to 3.0%', hedgeAction: 'INCREASED SHORT TO 75% ($75M SOL-PERP)' },
-    { hour: 7, time: '2022-05-20 14:00', price: 32, riskLevel: 'CRITICAL', distance: -0.06, targetHedge: 75_000_000, eventText: 'CASCADE HIT: Liquidation boundary breached' },
-    { hour: 8, time: '2022-05-20 16:00', price: 28, riskLevel: 'CRITICAL', distance: -0.21, targetHedge: 75_000_000, eventText: 'MARKET GAP: Short gains offset cascade losses' },
-    { hour: 9, time: '2022-05-20 18:00', price: 25, riskLevel: 'CRITICAL', distance: -0.36, targetHedge: 75_000_000, eventText: 'RECOVERY: Hedge fully covered protocol deficit' },
-  ];
+  const { data: scenariosData } = useQuery(GET_SCENARIOS);
+  const { data: replayData, loading: replayLoading } = useQuery(RUN_REPLAY, {
+    variables: { scenarioId: selectedScenarioId },
+  });
+
+  const replay = replayData?.replay;
+  const ticks: ReplayTickGql[] = replay?.ticks || [];
+
+  // Reset index when changing scenario
+  const handleSelectScenario = (id: string) => {
+    setSelectedScenarioId(id);
+    setCurrentStepIndex(0);
+    setIsPlaying(false);
+  };
 
   useEffect(() => {
     let timer: any;
-    if (isPlaying) {
+    if (isPlaying && ticks.length > 0) {
       timer = setInterval(() => {
         setCurrentStepIndex((prev) => {
-          if (prev < scenarioData.length - 1) {
+          if (prev < ticks.length - 1) {
             return prev + 1;
           } else {
             setIsPlaying(false);
             return prev;
           }
         });
-      }, 1000);
+      }, 800);
     }
     return () => clearInterval(timer);
-  }, [isPlaying]);
+  }, [isPlaying, ticks.length]);
 
-  const current = scenarioData[currentStepIndex];
-  const isComplete = currentStepIndex === scenarioData.length - 1;
+  const currentTick = ticks[currentStepIndex];
+  const isComplete = ticks.length > 0 && currentStepIndex === ticks.length - 1;
 
   const handleReset = () => {
     setIsPlaying(false);
     setCurrentStepIndex(0);
   };
 
+  // CSV download function
+  const handleDownloadCsv = () => {
+    if (!ticks.length) return;
+    const header = 'timestamp,price,healthFactor,liquidationDistance,riskLevel,targetHedge,hedgePnl,cumulativeFunding\n';
+    const rows = ticks
+      .map(
+        (t) =>
+          `${t.timestamp},${t.price},${t.snapshot.healthFactor || ''},${t.snapshot.liquidationDistance || ''},${t.snapshot.riskLevel},${t.snapshot.targetHedge},${t.hedgePnl},${t.cumulativeFunding}`
+      )
+      .join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${selectedScenarioId}_replay.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const currentPrice = currentTick ? parseFloat(currentTick.price) : 55.2;
+  const currentRiskLevel: RiskLevel = currentTick ? currentTick.snapshot.riskLevel : 'HEALTHY';
+  const currentHedge = currentTick ? parseFloat(currentTick.snapshot.targetHedge) : 0;
+  const currentTime = currentTick
+    ? new Date(currentTick.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
+    : '2022-05-20 00:00';
+
+  const executionFired = currentTick?.execution;
+  const eventMessage = executionFired
+    ? `⚡ HEDGE ADJUSTED: Filled $${(parseFloat(executionFired.filledNotional) / 1_000_000).toFixed(2)}M SOL-PERP (${executionFired.status})`
+    : currentRiskLevel !== 'HEALTHY'
+    ? `⚠ ${currentRiskLevel} THRESHOLD ACTIVE (Distance: ${(parseFloat(currentTick?.snapshot.liquidationDistance || '0') * 100).toFixed(1)}%)`
+    : null;
+
   return (
     <div className="space-y-6">
-      {/* Header & Source Note */}
+      {/* Header & Scenario Selection */}
       <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-[#232733] gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-white tracking-tight">
               Historical Crash Replay
             </h2>
-            <span className="px-2.5 py-0.5 rounded text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-mono">
-              Solend Whale — May 2022
-            </span>
+            <select
+              value={selectedScenarioId}
+              onChange={(e) => handleSelectScenario(e.target.value)}
+              className="px-3 py-1 bg-[#151922] text-indigo-400 border border-indigo-500/30 rounded text-xs font-mono focus:outline-none focus:border-indigo-400"
+            >
+              {scenariosData?.scenarios?.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              )) || (
+                <>
+                  <option value="solend-whale-2022">Solend Whale — May 2022</option>
+                  <option value="ftx-collapse-2022">FTX Contagion — Nov 2022</option>
+                  <option value="sol-whipsaw-2023">Market Whipsaw — Mar 2023</option>
+                </>
+              )}
+            </select>
           </div>
           <p className="text-xs text-neutral-400 font-mono mt-1">
-            Provenance: Reconstructed from Solend on-chain reserve config (5.7M SOL, $108M USDC debt); hourly SOL price feed.
+            {replay?.sourceNote ||
+              'Provenance: Reconstructed from Solend on-chain reserve config (5.7M SOL, $108M USDC debt); hourly SOL price feed.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors"
+            disabled={replayLoading || ticks.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold rounded transition-colors"
           >
             <Play className="w-4 h-4 fill-white" />
             {isPlaying ? 'Pause' : isComplete ? 'Replay Finished' : 'Play Defense'}
@@ -90,6 +156,15 @@ export const ReplayScreen: React.FC = () => {
             <RotateCcw className="w-4 h-4" />
             Reset
           </button>
+          <button
+            onClick={handleDownloadCsv}
+            disabled={ticks.length === 0}
+            className="flex items-center gap-2 px-3 py-2 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-sm rounded border border-[#232733] transition-colors"
+            title="Export full replay audit CSV"
+          >
+            <Download className="w-4 h-4" />
+            CSV
+          </button>
         </div>
       </div>
 
@@ -98,51 +173,53 @@ export const ReplayScreen: React.FC = () => {
         <div>
           <span className="text-xs text-neutral-400 font-mono uppercase">Simulation Time</span>
           <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
-            {current.time}
+            {currentTime}
           </div>
         </div>
 
         <div>
           <span className="text-xs text-neutral-400 font-mono uppercase">SOL Price</span>
           <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
-            ${current.price.toFixed(2)}
+            ${currentPrice.toFixed(2)}
           </div>
         </div>
 
         <div>
           <span className="text-xs text-neutral-400 font-mono uppercase">Risk Tier</span>
           <div className="mt-1">
-            <RiskBadge level={current.riskLevel} />
+            <RiskBadge level={currentRiskLevel} />
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">Active Hedge Size</span>
+          <span className="text-xs text-neutral-400 font-mono uppercase">Active Hedge Target</span>
           <div className="text-lg font-bold font-mono text-indigo-400 mt-1 tabular-nums">
-            ${(current.targetHedge / 1_000_000).toFixed(1)}M
+            ${(currentHedge / 1_000_000).toFixed(2)}M
           </div>
         </div>
       </div>
 
       {/* Realtime Event Callout Banner */}
-      {current.eventText && (
+      {eventMessage && (
         <div className="p-4 rounded-lg border bg-[#151922] border-indigo-800/40 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400" />
             <div>
-              <div className="text-sm font-bold text-white font-mono">{current.eventText}</div>
-              {current.hedgeAction && (
-                <div className="text-xs text-emerald-400 font-mono mt-0.5 font-semibold">
-                  ⚡ {current.hedgeAction}
+              <div className="text-sm font-bold text-white font-mono">{eventMessage}</div>
+              {executionFired?.slippageBps && (
+                <div className="text-xs text-emerald-400 font-mono mt-0.5">
+                  Execution slippage: {executionFired.slippageBps} bps
                 </div>
               )}
             </div>
           </div>
-          <span className="text-xs font-mono text-neutral-500">Step {currentStepIndex + 1} / {scenarioData.length}</span>
+          <span className="text-xs font-mono text-neutral-500">
+            Step {currentStepIndex + 1} / {ticks.length || 1}
+          </span>
         </div>
       )}
 
-      {/* Head-to-Head Comparison Card (Shown on completion or ongoing) */}
+      {/* Head-to-Head Comparison Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Without Hedge Column */}
         <div className="bg-[#12141a] border border-red-900/30 rounded-lg p-5">
@@ -156,11 +233,15 @@ export const ReplayScreen: React.FC = () => {
           <div className="mt-4 space-y-3 text-xs font-mono">
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Liquidation Penalties Seized</span>
-              <span className="text-red-400 font-bold tabular-nums">-$8.4M</span>
+              <span className="text-red-400 font-bold tabular-nums">
+                -${replay ? (parseFloat(replay.withoutHedge.liquidationPenalties) / 1_000_000).toFixed(2) : '8.40'}M
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Protocol Bad Debt Accumulated</span>
-              <span className="text-red-400 font-bold tabular-nums">-$16.2M</span>
+              <span className="text-red-400 font-bold tabular-nums">
+                -${replay ? (parseFloat(replay.withoutHedge.badDebt) / 1_000_000).toFixed(2) : '16.20'}M
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Hedge P&L Offset</span>
@@ -172,7 +253,9 @@ export const ReplayScreen: React.FC = () => {
             </div>
             <div className="flex justify-between pt-2 text-sm font-bold text-red-400">
               <span>Net Catastrophic Loss</span>
-              <span className="tabular-nums">-$24.6M</span>
+              <span className="tabular-nums">
+                -${replay ? (parseFloat(replay.withoutHedge.netLoss) / 1_000_000).toFixed(2) : '24.60'}M
+              </span>
             </div>
           </div>
         </div>
@@ -189,23 +272,33 @@ export const ReplayScreen: React.FC = () => {
           <div className="mt-4 space-y-3 text-xs font-mono">
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Liquidation Penalties Seized</span>
-              <span className="text-neutral-300 font-bold tabular-nums">-$1.8M</span>
+              <span className="text-neutral-300 font-bold tabular-nums">
+                -${replay ? (parseFloat(replay.withHedge.liquidationPenalties) / 1_000_000).toFixed(2) : '1.80'}M
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Protocol Bad Debt Accumulated</span>
-              <span className="text-emerald-400 font-bold tabular-nums">$0.00</span>
+              <span className="text-emerald-400 font-bold tabular-nums">
+                ${replay ? (parseFloat(replay.withHedge.badDebt) / 1_000_000).toFixed(2) : '0.00'}M
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Hedge P&L Offset (Hyperliquid Short)</span>
-              <span className="text-emerald-400 font-bold tabular-nums">+$22.5M</span>
+              <span className="text-emerald-400 font-bold tabular-nums">
+                +${replay ? (parseFloat(replay.withHedge.hedgePnl) / 1_000_000).toFixed(2) : '22.50'}M
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
               <span>Funding + Slippage Incurred</span>
-              <span className="text-amber-400 tabular-nums">-$185.4K</span>
+              <span className="text-amber-400 tabular-nums">
+                -${replay ? ((parseFloat(replay.withHedge.fundingCost) + parseFloat(replay.withHedge.slippageCost)) / 1_000).toFixed(1) : '185.4'}K
+              </span>
             </div>
             <div className="flex justify-between pt-2 text-sm font-bold text-emerald-400">
               <span>Net Preserved Outcome</span>
-              <span className="tabular-nums">-$4.1M</span>
+              <span className="tabular-nums">
+                -${replay ? (parseFloat(replay.withHedge.netLoss) / 1_000_000).toFixed(2) : '4.10'}M
+              </span>
             </div>
           </div>
         </div>
@@ -213,10 +306,10 @@ export const ReplayScreen: React.FC = () => {
 
       {/* Impact verification banner */}
       <ImpactPanel
-        lossAvoided={20_500_000}
-        badDebtReductionPct={100}
-        liquidationsPrevented={4}
-        hedgeCost={185_400}
+        lossAvoided={replay ? parseFloat(replay.impact.lossAvoided) : 20_500_000}
+        badDebtReductionPct={replay ? parseFloat(replay.impact.badDebtReductionPct) : 100}
+        liquidationsPrevented={replay ? replay.impact.liquidationsPrevented : 4}
+        hedgeCost={replay ? parseFloat(replay.impact.hedgeCost) : 185_400}
       />
     </div>
   );

@@ -21,6 +21,56 @@ export const GET_CURRENT_SNAPSHOT = gql`
   }
 `;
 
+export const GET_SNAPSHOTS = gql`
+  query GetSnapshots($since: DateTime, $limit: Int) {
+    snapshots(since: $since, limit: $limit) {
+      id
+      timestamp
+      price
+      collateralValue
+      riskAdjustedCollateral
+      debtValue
+      healthFactor
+      liquidationPrice
+      liquidationDistance
+      riskLevel
+      emergency
+      exposure
+      hedgeRatio
+      targetHedge
+    }
+  }
+`;
+
+export const GET_EXECUTIONS = gql`
+  query GetExecutions($limit: Int) {
+    executions(limit: $limit) {
+      id
+      timestamp
+      riskLevel
+      liquidationDistance
+      targetNotional
+      filledNotional
+      avgFillPrice
+      referencePrice
+      slippageBps
+      residualExposure
+      status
+      note
+      bookSnapshot {
+        bids {
+          price
+          size
+        }
+        asks {
+          price
+          size
+        }
+      }
+    }
+  }
+`;
+
 export const GET_EXECUTION_STATUS = gql`
   query GetExecutionStatus {
     executionStatus {
@@ -92,6 +142,38 @@ export const RUN_REPLAY = gql`
         badDebtReductionPct
         liquidationsPrevented
         hedgeCost
+      }
+    }
+  }
+`;
+
+export const SET_KILL_SWITCH = gql`
+  mutation SetKillSwitch($active: Boolean!) {
+    setKillSwitch(active: $active) {
+      connected
+      tradingPermission
+      withdrawPermission
+      accountAddress
+      marginAvailable
+      killSwitchActive
+    }
+  }
+`;
+
+export const UPDATE_POLICY = gql`
+  mutation UpdatePolicy($input: RiskPolicyInput!) {
+    updatePolicy(input: $input) {
+      warning {
+        minimumDistance
+        hedgeRatio
+      }
+      danger {
+        minimumDistance
+        hedgeRatio
+      }
+      critical {
+        minimumDistance
+        hedgeRatio
       }
     }
   }
