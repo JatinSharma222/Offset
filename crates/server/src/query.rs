@@ -143,25 +143,23 @@ impl QueryRoot {
             }
         }
 
-        let scn = HistoricalScenario::solend_whale_2022();
-        Ok(vec![ScenarioGql {
-            id: scn.id,
-            name: scn.name,
-            description: scn.description,
-            source_note: scn.source_note,
-        }])
+        let all = HistoricalScenario::list_all();
+        Ok(all
+            .into_iter()
+            .map(|s| ScenarioGql {
+                id: s.id,
+                name: s.name,
+                description: s.description,
+                source_note: s.source_note,
+            })
+            .collect())
     }
 
     async fn replay(&self, ctx: &Context<'_>, scenario_id: String) -> Result<ReplayResultGql> {
         let state = ctx.data::<AppState>()?;
-        let scn = if scenario_id == "solend-whale-2022" {
-            HistoricalScenario::solend_whale_2022()
-        } else {
-            return Err(async_graphql::Error::new(format!(
-                "Scenario '{}' not found",
-                scenario_id
-            )));
-        };
+        let scn = HistoricalScenario::load(&scenario_id).map_err(|e| {
+            async_graphql::Error::new(format!("Scenario '{}' error: {}", scenario_id, e))
+        })?;
 
         let policy: RiskPolicy = state.policy.read().await.clone();
         let res = run_replay(&scn, &policy).await;

@@ -1,8 +1,26 @@
 use crate::prices::PricePoint;
-use chrono::{TimeZone, Utc};
 use risk_engine::{Money, Position, Ratio};
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::env;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, thiserror::Error)]
+pub enum DataError {
+    #[error("Scenario '{0}' not found")]
+    NotFound(String),
+    #[error("IO error reading scenario: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("JSON deserialization error: {0}")]
+    Json(#[from] serde_json::Error),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScenarioMetadata {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub source_note: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HistoricalScenario {
@@ -17,12 +35,21 @@ pub struct HistoricalScenario {
 }
 
 impl HistoricalScenario {
+    pub fn metadata(&self) -> ScenarioMetadata {
+        ScenarioMetadata {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            description: self.description.clone(),
+            source_note: self.source_note.clone(),
+        }
+    }
+
     pub fn initial_position(&self) -> Position {
         let first_price = self
             .prices
             .first()
             .map(|p| p.price)
-            .unwrap_or(Decimal::ZERO);
+            .unwrap_or(rust_decimal::Decimal::ZERO);
         crate::positions::create_lending_position(
             "SOL",
             self.collateral_amount,
@@ -32,40 +59,67 @@ impl HistoricalScenario {
         )
     }
 
-    pub fn solend_whale_2022() -> Self {
-        // Solend Whale May 2022 position:
-        // ~5.7M SOL deposited, ~$108M USDC debt, liquidation threshold 80% (0.80)
-        let base_time = Utc.with_ymd_and_hms(2022, 5, 20, 0, 0, 0).unwrap();
-        let price_series = vec![
-            (0, Decimal::new(55, 0)),
-            (1, Decimal::new(52, 0)),
-            (2, Decimal::new(48, 0)),
-            (3, Decimal::new(44, 0)),
-            (4, Decimal::new(41, 0)),
-            (5, Decimal::new(38, 0)),
-            (6, Decimal::new(35, 0)),
-            (7, Decimal::new(32, 0)),
-            (8, Decimal::new(28, 0)),
-            (9, Decimal::new(25, 0)),
+    /// Loads a historical scenario by ID from disk or falls back to embedded data.
+    pub fn load(id: &str) -> Result<Self, DataError> {
+        // 1. Try resolving file path from candidate directories
+        let candidates = [
+            env::var("FIXTURES_DIR").ok().map(PathBuf::from),
+            Some(PathBuf::from("data/fixtures")),
+            Some(PathBuf::from("../data/fixtures")),
+            Some(PathBuf::from("../../data/fixtures")),
         ];
 
-        let prices = price_series
-            .into_iter()
-            .map(|(hours, price)| PricePoint {
-                timestamp: base_time + chrono::Duration::hours(hours),
-                price,
-            })
-            .collect();
+        let file_name = format!("{}.json", id.replace('-', "_"));
+        let alt_file_name = format!("{}.json", id);
 
-        Self {
-            id: "solend-whale-2022".to_string(),
-            name: "Solend Whale — May 2022".to_string(),
-            description: "Single large SOL borrower on Solend facing cascade liquidation during market crash".to_string(),
-            source_note: "Position parameters reconstructed from Solend reserve config and publicly reported account size; SOL price series hourly.".to_string(),
-            liquidation_threshold: Decimal::new(80, 2), // 0.80
-            collateral_amount: Decimal::new(5_700_000, 0), // 5.7M SOL
-            debt_value: Decimal::new(108_000_000, 0),    // $108M USDC
-            prices,
+        for dir in candidates.iter().flatten() {
+            let path1 = dir.join(&file_name);
+            if path1.exists() {
+                return Self::load_from_file(&path1);
+            }
+            let path2 = dir.join(&alt_file_name);
+            if path2.exists() {
+                return Self::load_from_file(&path2);
+            }
         }
+
+        // 2. Fall back to embedded scenario definitions
+        match id {
+            "solend-whale-2022" => Ok(Self::solend_whale_2022()),
+            "ftx-collapse-2022" => Ok(Self::ftx_collapse_2022()),
+            "sol-whipsaw-2023" => Ok(Self::sol_whipsaw_2023()),
+            _ => Err(DataError::NotFound(id.to_string())),
+        }
+    }
+
+    /// Loads a scenario from an explicit filesystem path.
+    pub fn load_from_file(path: &Path) -> Result<Self, DataError> {
+        let content = std::fs::read_to_string(path)?;
+        let scenario: Self = serde_json::from_str(&content)?;
+        Ok(scenario)
+    }
+
+    /// Returns metadata for all available built-in historical scenarios.
+    pub fn list_all() -> Vec<ScenarioMetadata> {
+        vec![
+            Self::solend_whale_2022().metadata(),
+            Self::ftx_collapse_2022().metadata(),
+            Self::sol_whipsaw_2023().metadata(),
+        ]
+    }
+
+    pub fn solend_whale_2022() -> Self {
+        const EMBEDDED: &str = include_str!("../../../data/fixtures/solend_whale_2022.json");
+        serde_json::from_str(EMBEDDED).expect("Invalid embedded solend_whale_2022.json")
+    }
+
+    pub fn ftx_collapse_2022() -> Self {
+        const EMBEDDED: &str = include_str!("../../../data/fixtures/ftx_collapse_2022.json");
+        serde_json::from_str(EMBEDDED).expect("Invalid embedded ftx_collapse_2022.json")
+    }
+
+    pub fn sol_whipsaw_2023() -> Self {
+        const EMBEDDED: &str = include_str!("../../../data/fixtures/sol_whipsaw_2023.json");
+        serde_json::from_str(EMBEDDED).expect("Invalid embedded sol_whipsaw_2023.json")
     }
 }

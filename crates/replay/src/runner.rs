@@ -5,6 +5,7 @@ use execution::{ExecutionRecord, Executor, SimulatedExecutor};
 use risk_engine::{evaluate_position, Money, RiskPolicy, RiskSnapshot};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayTick {
@@ -27,6 +28,58 @@ pub struct ReplayResult {
     pub impact: ProtectionImpact,
 }
 
+impl ReplayResult {
+    /// Generates a CSV string representation of the replay ticks and metrics.
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::new();
+        csv.push_str("timestamp,price,health_factor,liquidation_price,liquidation_distance,risk_level,target_hedge,filled_hedge,hedge_pnl,cumulative_funding\n");
+
+        for tick in &self.ticks {
+            let hf_str = tick
+                .snapshot
+                .health_factor
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "".to_string());
+            let liq_price_str = tick
+                .snapshot
+                .liquidation_price
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "".to_string());
+            let dist_str = tick
+                .snapshot
+                .liquidation_distance
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "".to_string());
+            let filled_hedge_str = tick
+                .execution
+                .as_ref()
+                .map(|e| e.filled_notional.to_string())
+                .unwrap_or_else(|| tick.hedge_position.to_string());
+
+            csv.push_str(&format!(
+                "{},{},{},{},{},{:?},{},{},{},{}\n",
+                tick.timestamp.to_rfc3339(),
+                tick.price,
+                hf_str,
+                liq_price_str,
+                dist_str,
+                tick.snapshot.risk_level,
+                tick.snapshot.target_hedge,
+                filled_hedge_str,
+                tick.hedge_pnl,
+                tick.cumulative_funding
+            ));
+        }
+
+        csv
+    }
+
+    /// Saves the CSV representation of the replay result to a file on disk.
+    pub fn save_csv(&self, path: &Path) -> std::io::Result<()> {
+        std::fs::write(path, self.to_csv())
+    }
+}
+
 pub async fn run_replay(scenario: &HistoricalScenario, policy: &RiskPolicy) -> ReplayResult {
     let with_hedge = run_pass(scenario, Some(policy)).await;
     let without_hedge = run_pass(scenario, None).await;
@@ -40,10 +93,14 @@ pub async fn run_replay(scenario: &HistoricalScenario, policy: &RiskPolicy) -> R
             * Decimal::new(100, 0)
     };
 
+    let liquidations_prevented = without_hedge
+        .liquidation_events
+        .saturating_sub(with_hedge.liquidation_events);
+
     let impact = ProtectionImpact {
         loss_avoided,
         bad_debt_reduction_pct: bad_debt_reduction,
-        liquidations_prevented: 0,
+        liquidations_prevented,
         hedge_cost: with_hedge.summary.funding_cost + with_hedge.summary.slippage_cost,
     };
 
@@ -60,6 +117,7 @@ pub async fn run_replay(scenario: &HistoricalScenario, policy: &RiskPolicy) -> R
 struct PassResult {
     ticks: Vec<ReplayTick>,
     summary: OutcomeSummary,
+    liquidation_events: u32,
 }
 
 async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>) -> PassResult {
@@ -101,6 +159,7 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
         .map(|p| p.price)
         .unwrap_or(Decimal::ZERO);
     let mut hedge_pnl = Decimal::ZERO;
+    let mut liquidation_events = 0u32;
 
     for pt in &scenario.prices {
         // 1. Update price on position
@@ -144,6 +203,7 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
         // 5. Model liquidations when health factor < 1.0
         if let Some(hf) = snapshot.health_factor {
             if hf < Decimal::ONE {
+                liquidation_events += 1;
                 let close_factor = Decimal::new(20, 2); // 20%
                 let penalty = Decimal::new(5, 2); // 5%
 
@@ -192,5 +252,6 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
             slippage_cost: total_slippage,
             net_loss,
         },
+        liquidation_events,
     }
 }

@@ -65,9 +65,12 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Seed historical scenarios if not present
-            let scn = HistoricalScenario::solend_whale_2022();
-            if let Err(e) = db::upsert_scenario(&pool, &scn).await {
-                warn!("Failed to seed scenario in database: {:?}", e);
+            for scn_meta in HistoricalScenario::list_all() {
+                if let Ok(scn) = HistoricalScenario::load(&scn_meta.id) {
+                    if let Err(e) = db::upsert_scenario(&pool, &scn).await {
+                        warn!("Failed to seed scenario '{}' in database: {:?}", scn.id, e);
+                    }
+                }
             }
             Some(pool)
         }

@@ -1,0 +1,24 @@
+{
+  "id": "sol-whipsaw-2023",
+  "name": "Market Whipsaw & Recovery — March 2023",
+  "description": "Temporary liquidity shock where SOL dips into warning zone before swiftly recovering without liquidation",
+  "source_note": "Reconstructed from March 2023 SVB-weekend volatility; SOL hourly price series from Pyth.",
+  "liquidation_threshold": "0.80",
+  "collateral_amount": "200000",
+  "debt_value": "2800000",
+  "prices": [
+    { "timestamp": "2023-03-10T00:00:00Z", "price": "23.50" },
+    { "timestamp": "2023-03-10T03:00:00Z", "price": "22.80" },
+    { "timestamp": "2023-03-10T06:00:00Z", "price": "22.10" },
+    { "timestamp": "2023-03-10T09:00:00Z", "price": "21.40" },
+    { "timestamp": "2023-03-10T12:00:00Z", "price": "20.70" },
+    { "timestamp": "2023-03-10T15:00:00Z", "price": "19.80" },
+    { "timestamp": "2023-03-10T18:00:00Z", "price": "20.20" },
+    { "timestamp": "2023-03-10T21:00:00Z", "price": "21.00" },
+    { "timestamp": "2023-03-11T00:00:00Z", "price": "21.90" },
+    { "timestamp": "2023-03-11T03:00:00Z", "price": "22.70" },
+    { "timestamp": "2023-03-11T06:00:00Z", "price": "23.40" },
+    { "timestamp": "2023-03-11T09:00:00Z", "price": "24.20" },
+    { "timestamp": "2023-03-11T12:00:00Z", "price": "24.80" }
+  ]
+}
