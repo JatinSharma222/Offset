@@ -3,6 +3,7 @@ pub mod health_factor;
 pub mod hedge;
 pub mod liquidation;
 pub mod risk;
+pub mod sweep;
 pub mod types;
 
 // Re-export primary types and entrypoint
@@ -13,6 +14,10 @@ pub use health_factor::{
 pub use hedge::{hedge_ratio, target_hedge};
 pub use liquidation::{liquidation_distance, liquidation_price};
 pub use risk::risk_level;
+pub use sweep::{
+    format_sweep_csv, format_sweep_table, run_price_sweep, run_price_sweep_with_prices,
+    PriceSweepConfig, PriceSweepStep,
+};
 pub use types::{
     AssetPosition, HedgeTier, Money, Position, Ratio, RiskLevel, RiskPolicy, RiskSnapshot,
 };
