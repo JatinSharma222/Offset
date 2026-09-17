@@ -101,6 +101,24 @@ async fn test_orchestration_loop_and_graphql_flow() {
     // Verify kill switch is now active in state
     assert!(state.safety_config.read().await.kill_switch);
 
+    // Test on-chain obligation GraphQL query
+    let obl_res = schema
+        .execute("{ obligation { pubkey owner source deposits { asset depositedAmount liquidationThreshold } borrows { asset borrowedAmount } } }")
+        .await;
+    assert!(
+        obl_res.errors.is_empty(),
+        "Obligation query errors: {:?}",
+        obl_res.errors
+    );
+    let obl_data = obl_res.data.into_json().unwrap();
+    assert_eq!(obl_data["obligation"]["source"], "MockKamino");
+    assert_eq!(obl_data["obligation"]["deposits"][0]["asset"], "SOL");
+    assert_eq!(
+        obl_data["obligation"]["deposits"][0]["depositedAmount"],
+        "50000"
+    );
+    assert_eq!(obl_data["obligation"]["borrows"][0]["asset"], "USDC");
+
     // Stop loop task
     loop_handle.abort();
 }

@@ -172,3 +172,28 @@ pub struct RiskPolicyInput {
     pub danger: HedgeTierInput,
     pub critical: HedgeTierInput,
 }
+
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
+pub struct OnChainDepositGql {
+    pub reserve_pubkey: String,
+    pub asset: String,
+    pub deposited_amount: Decimal,
+    pub liquidation_threshold: Decimal,
+}
+
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
+pub struct OnChainBorrowGql {
+    pub reserve_pubkey: String,
+    pub asset: String,
+    pub borrowed_amount: Decimal,
+}
+
+#[derive(SimpleObject, Clone, Serialize, Deserialize)]
+pub struct OnChainObligationGql {
+    pub pubkey: String,
+    pub owner: String,
+    pub lending_market: String,
+    pub deposits: Vec<OnChainDepositGql>,
+    pub borrows: Vec<OnChainBorrowGql>,
+    pub source: String,
+}

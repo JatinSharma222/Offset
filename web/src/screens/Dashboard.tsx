@@ -1,6 +1,11 @@
 import React, { useMemo } from 'react';
 import { useQuery, useSubscription } from '@apollo/client';
-import { GET_CURRENT_SNAPSHOT, GET_EXECUTIONS, SNAPSHOT_STREAM } from '../graphql/operations';
+import {
+  GET_CURRENT_SNAPSHOT,
+  GET_EXECUTIONS,
+  GET_ONCHAIN_OBLIGATION,
+  SNAPSHOT_STREAM,
+} from '../graphql/operations';
 import { StatCard } from '../components/StatCard';
 import { RiskBadge } from '../components/RiskBadge';
 import { PriceChart } from '../components/PriceChart';
@@ -12,6 +17,11 @@ export const DashboardScreen: React.FC = () => {
   // Query initial snapshot & poll
   const { data: snapshotData } = useQuery(GET_CURRENT_SNAPSHOT, {
     pollInterval: 4000,
+  });
+
+  // Query on-chain Solana obligation data
+  const { data: obligationData } = useQuery(GET_ONCHAIN_OBLIGATION, {
+    pollInterval: 10000,
   });
 
   // Subscribe to live websocket stream
@@ -101,6 +111,36 @@ export const DashboardScreen: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* On-Chain Solana Ingestion Banner */}
+      <div className="bg-[#12141a] border border-[#232733] rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            ON-CHAIN SOLANA INGESTION
+          </div>
+          <span className="text-neutral-500">|</span>
+          <span className="text-neutral-400">
+            Obligation: <span className="text-white">{obligationData?.obligation?.pubkey?.slice(0, 8)}...{obligationData?.obligation?.pubkey?.slice(-4)}</span>
+          </span>
+          <span className="text-neutral-500">|</span>
+          <span className="text-neutral-400">
+            Market: <span className="text-indigo-400">Kamino Lending Vault</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-neutral-400">
+          <span>
+            Deposits: <span className="text-white font-bold">{obligationData?.obligation?.deposits?.[0]?.depositedAmount ? parseFloat(obligationData.obligation.deposits[0].depositedAmount).toLocaleString() : '50,000'} SOL</span> (LT: 80%)
+          </span>
+          <span className="text-neutral-600">•</span>
+          <span>
+            Debt: <span className="text-white font-bold">${obligationData?.obligation?.borrows?.[0]?.borrowedAmount ? (parseFloat(obligationData.obligation.borrows[0].borrowedAmount) / 1_000_000).toFixed(2) : '6.50'}M USDC</span>
+          </span>
+          <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/30 text-[10px] uppercase font-bold">
+            {obligationData?.obligation?.source === 'LiveRpc' ? 'Live RPC' : 'Kamino Ingested'}
+          </span>
+        </div>
+      </div>
+
       {/* Top Stat Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard

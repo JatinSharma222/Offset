@@ -10,6 +10,8 @@ pub struct ServerConfig {
     pub server_port: u16,
     pub loop_interval_secs: u64,
     pub min_hedge_adjustment_usd: Decimal,
+    pub solana_rpc_url: String,
+    pub solana_obligation_pubkey: String,
     pub safety: SafetyConfig,
 }
 
@@ -31,6 +33,11 @@ impl ServerConfig {
             .ok()
             .and_then(|v| Decimal::from_str(&v).ok())
             .unwrap_or(Decimal::new(100, 0));
+
+        let solana_rpc_url = env::var("SOLANA_RPC_URL")
+            .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
+        let solana_obligation_pubkey = env::var("SOLANA_OBLIGATION_PUBKEY")
+            .unwrap_or_else(|_| "7u3k7...KaminoObligation".to_string());
 
         let max_total_notional = env::var("MAX_TOTAL_NOTIONAL_USD")
             .ok()
@@ -61,6 +68,8 @@ impl ServerConfig {
             server_port,
             loop_interval_secs,
             min_hedge_adjustment_usd,
+            solana_rpc_url,
+            solana_obligation_pubkey,
             safety,
         }
     }

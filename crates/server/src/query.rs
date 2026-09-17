@@ -261,4 +261,41 @@ impl QueryRoot {
             },
         })
     }
+
+    async fn obligation(
+        &self,
+        ctx: &Context<'_>,
+        pubkey: Option<String>,
+    ) -> Result<OnChainObligationGql> {
+        let state = ctx.data::<AppState>()?;
+        let target_pubkey = pubkey.unwrap_or_else(|| state.config.solana_obligation_pubkey.clone());
+        let client = data::SolanaRpcClient::new(&state.config.solana_rpc_url);
+        let obl = client.fetch_obligation_with_fallback(&target_pubkey).await;
+
+        Ok(OnChainObligationGql {
+            pubkey: obl.pubkey,
+            owner: obl.owner,
+            lending_market: obl.lending_market,
+            deposits: obl
+                .deposits
+                .into_iter()
+                .map(|d| OnChainDepositGql {
+                    reserve_pubkey: d.reserve_pubkey,
+                    asset: d.asset,
+                    deposited_amount: d.deposited_amount,
+                    liquidation_threshold: d.liquidation_threshold,
+                })
+                .collect(),
+            borrows: obl
+                .borrows
+                .into_iter()
+                .map(|b| OnChainBorrowGql {
+                    reserve_pubkey: b.reserve_pubkey,
+                    asset: b.asset,
+                    borrowed_amount: b.borrowed_amount,
+                })
+                .collect(),
+            source: format!("{:?}", obl.source),
+        })
+    }
 }

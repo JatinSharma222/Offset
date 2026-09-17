@@ -21,6 +21,28 @@ export const GET_CURRENT_SNAPSHOT = gql`
   }
 `;
 
+export const GET_ONCHAIN_OBLIGATION = gql`
+  query GetOnChainObligation($pubkey: String) {
+    obligation(pubkey: $pubkey) {
+      pubkey
+      owner
+      lendingMarket
+      source
+      deposits {
+        reservePubkey
+        asset
+        depositedAmount
+        liquidationThreshold
+      }
+      borrows {
+        reservePubkey
+        asset
+        borrowedAmount
+      }
+    }
+  }
+`;
+
 export const GET_SNAPSHOTS = gql`
   query GetSnapshots($since: DateTime, $limit: Int) {
     snapshots(since: $since, limit: $limit) {
