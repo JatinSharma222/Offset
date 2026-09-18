@@ -68,6 +68,7 @@ services:
     build:
       context: ./web
       dockerfile: ../Dockerfile.frontend
+      target: ${FRONTEND_TARGET:-dev}
     container_name: Offset-frontend
     restart: unless-stopped
     depends_on:

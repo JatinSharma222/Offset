@@ -20,16 +20,18 @@ RUN mkdir -p crates/risk-engine/src crates/execution/src crates/data/src \
     && echo "" > crates/execution/src/lib.rs \
     && echo "" > crates/data/src/lib.rs \
     && echo "" > crates/replay/src/lib.rs \
+    && echo "" > crates/server/src/lib.rs \
     && echo "fn main() {}" > crates/server/src/main.rs \
-    && cargo build --release -p Offset-server \
+    && cargo build --release -p Offset-server --features live \
     && rm -rf crates/*/src
 
 # --- source layer -----------------------------------------------------------
 COPY crates crates
+COPY data/fixtures data/fixtures
 
 # Touch so cargo rebuilds the workspace crates rather than reusing the stubs.
 RUN find crates -name "*.rs" -exec touch {} + \
-    && cargo build --release -p Offset-server
+    && cargo build --release -p Offset-server --features live
 
 # --- runtime ----------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
@@ -43,6 +45,7 @@ RUN apt-get update \
 
 COPY --from=builder /app/target/release/Offset-server /usr/local/bin/Offset-server
 COPY crates/server/migrations /app/migrations
+COPY data/fixtures /app/data/fixtures
 
 USER Offset
 
