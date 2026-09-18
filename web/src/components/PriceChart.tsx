@@ -14,6 +14,8 @@ interface PriceChartProps {
   criticalPrice?: number;
 }
 
+type PriceLine = ReturnType<ISeriesApi<'Area'>['createPriceLine']>;
+
 export const PriceChart: React.FC<PriceChartProps> = ({
   data,
   liquidationPrice,
@@ -24,6 +26,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
+  const priceLinesRef = useRef<PriceLine[]>([]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -77,15 +80,30 @@ export const PriceChart: React.FC<PriceChartProps> = ({
 
     if (data.length > 0) {
       // Sort and ensure unique timestamps
-      const sortedData = [...data]
-        .sort((a, b) => a.time - b.time)
-        .map((d) => ({ time: d.time as any, value: d.value }));
+      const sortedMap = new Map<number, number>();
+      for (const d of data) {
+        sortedMap.set(d.time, d.value);
+      }
+      const sortedData = Array.from(sortedMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([time, value]) => ({ time: time as any, value }));
+
       seriesRef.current.setData(sortedData);
     }
 
+    // Clear previous threshold lines to prevent visual stacking
+    for (const line of priceLinesRef.current) {
+      try {
+        seriesRef.current.removePriceLine(line);
+      } catch {
+        // Line already detached
+      }
+    }
+    priceLinesRef.current = [];
+
     // Threshold lines
     if (liquidationPrice) {
-      seriesRef.current.createPriceLine({
+      const line = seriesRef.current.createPriceLine({
         price: liquidationPrice,
         color: '#EF4444',
         lineWidth: 2,
@@ -93,10 +111,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         axisLabelVisible: true,
         title: 'LIQUIDATION CLIFF',
       });
+      priceLinesRef.current.push(line);
     }
 
     if (criticalPrice) {
-      seriesRef.current.createPriceLine({
+      const line = seriesRef.current.createPriceLine({
         price: criticalPrice,
         color: '#EF4444',
         lineWidth: 1,
@@ -104,10 +123,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         axisLabelVisible: true,
         title: 'CRITICAL (75% HEDGE)',
       });
+      priceLinesRef.current.push(line);
     }
 
     if (dangerPrice) {
-      seriesRef.current.createPriceLine({
+      const line = seriesRef.current.createPriceLine({
         price: dangerPrice,
         color: '#F97316',
         lineWidth: 1,
@@ -115,10 +135,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         axisLabelVisible: true,
         title: 'DANGER (50% HEDGE)',
       });
+      priceLinesRef.current.push(line);
     }
 
     if (warningPrice) {
-      seriesRef.current.createPriceLine({
+      const line = seriesRef.current.createPriceLine({
         price: warningPrice,
         color: '#F59E0B',
         lineWidth: 1,
@@ -126,6 +147,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         axisLabelVisible: true,
         title: 'WARNING (25% HEDGE)',
       });
+      priceLinesRef.current.push(line);
     }
   }, [data, liquidationPrice, warningPrice, dangerPrice, criticalPrice]);
 

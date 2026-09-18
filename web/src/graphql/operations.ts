@@ -203,6 +203,60 @@ export const UPDATE_POLICY = gql`
   }
 `;
 
+export const SET_SIMULATED_PRICE = gql`
+  mutation SetSimulatedPrice($price: Decimal!) {
+    setSimulatedPrice(price: $price) {
+      id
+      timestamp
+      price
+      healthFactor
+      liquidationPrice
+      liquidationDistance
+      riskLevel
+      emergency
+      exposure
+      hedgeRatio
+      targetHedge
+    }
+  }
+`;
+
+export const SIMULATE_PRICE_SHOCK = gql`
+  mutation SimulatePriceShock($dropPercentage: Decimal!) {
+    simulatePriceShock(dropPercentage: $dropPercentage) {
+      id
+      timestamp
+      price
+      healthFactor
+      liquidationPrice
+      liquidationDistance
+      riskLevel
+      emergency
+      exposure
+      hedgeRatio
+      targetHedge
+    }
+  }
+`;
+
+export const RESET_SIMULATED_PRICE = gql`
+  mutation ResetSimulatedPrice {
+    resetSimulatedPrice {
+      id
+      timestamp
+      price
+      healthFactor
+      liquidationPrice
+      liquidationDistance
+      riskLevel
+      emergency
+      exposure
+      hedgeRatio
+      targetHedge
+    }
+  }
+`;
+
 export const SNAPSHOT_STREAM = gql`
   subscription OnSnapshotStream {
     snapshotStream {

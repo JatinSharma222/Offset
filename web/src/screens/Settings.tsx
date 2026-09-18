@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_EXECUTION_STATUS, SET_KILL_SWITCH } from '../graphql/operations';
-import { Check, X, Shield, AlertOctagon } from 'lucide-react';
+import { GET_EXECUTION_STATUS, SET_KILL_SWITCH, UPDATE_POLICY } from '../graphql/operations';
+import { Check, X, Shield, AlertOctagon, Sliders, Save } from 'lucide-react';
 
 export const SettingsScreen: React.FC = () => {
   const [localKillSwitch, setLocalKillSwitch] = useState(false);
+  const [policySavedMsg, setPolicySavedMsg] = useState(false);
+
+  // Policy tier state (in percentages)
+  const [warningDist, setWarningDist] = useState(15);
+  const [warningRatio, setWarningRatio] = useState(25);
+  const [dangerDist, setDangerDist] = useState(10);
+  const [dangerRatio, setDangerRatio] = useState(50);
+  const [criticalDist, setCriticalDist] = useState(5);
+  const [criticalRatio, setCriticalRatio] = useState(75);
 
   const { data: statusData, refetch } = useQuery(GET_EXECUTION_STATUS, {
     pollInterval: 5000,
@@ -12,6 +21,13 @@ export const SettingsScreen: React.FC = () => {
 
   const [setKillSwitchMutation, { loading: mutationLoading }] = useMutation(SET_KILL_SWITCH, {
     onCompleted: () => refetch(),
+  });
+
+  const [updatePolicyMutation, { loading: updatingPolicy }] = useMutation(UPDATE_POLICY, {
+    onCompleted: () => {
+      setPolicySavedMsg(true);
+      setTimeout(() => setPolicySavedMsg(false), 3000);
+    },
   });
 
   const status = statusData?.executionStatus;
@@ -26,6 +42,32 @@ export const SettingsScreen: React.FC = () => {
       });
     } catch (e) {
       console.error('Failed to toggle kill switch via GraphQL:', e);
+    }
+  };
+
+  const handleSavePolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updatePolicyMutation({
+        variables: {
+          input: {
+            warning: {
+              minimumDistance: (warningDist / 100).toString(),
+              hedgeRatio: (warningRatio / 100).toString(),
+            },
+            danger: {
+              minimumDistance: (dangerDist / 100).toString(),
+              hedgeRatio: (dangerRatio / 100).toString(),
+            },
+            critical: {
+              minimumDistance: (criticalDist / 100).toString(),
+              hedgeRatio: (criticalRatio / 100).toString(),
+            },
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Failed to update policy:', err);
     }
   };
 
@@ -87,36 +129,130 @@ export const SettingsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Protection Policy Section */}
+      {/* Protection Policy Editor Section */}
       <div className="bg-[#12141a] border border-[#232733] rounded-lg p-5">
-        <h3 className="text-sm font-semibold text-white pb-3 border-b border-[#232733]">
-          Active Liquidation Defense Policy
-        </h3>
-
-        <div className="mt-4 space-y-3 text-xs font-mono">
-          <div className="flex justify-between items-center py-1.5 text-neutral-300">
-            <span className="text-neutral-400">Protected Collateral Asset</span>
-            <span className="font-bold text-white">SOL</span>
-          </div>
-          <div className="flex justify-between items-center py-1.5 text-neutral-300">
-            <span className="text-neutral-400">Warning Trigger</span>
-            <span>
-              Distance ≤ 15% → <strong className="text-amber-400">25% Hedge</strong>
+        <div className="flex items-center justify-between pb-3 border-b border-[#232733]">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-indigo-400" />
+            Configurable Liquidation Defense Policy
+          </h3>
+          {policySavedMsg && (
+            <span className="text-xs font-mono text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              <Check className="w-3 h-3" /> Policy Saved & Applied
             </span>
-          </div>
-          <div className="flex justify-between items-center py-1.5 text-neutral-300">
-            <span className="text-neutral-400">Danger Trigger</span>
-            <span>
-              Distance ≤ 10% → <strong className="text-orange-400">50% Hedge</strong>
-            </span>
-          </div>
-          <div className="flex justify-between items-center py-1.5 text-neutral-300">
-            <span className="text-neutral-400">Critical Trigger</span>
-            <span>
-              Distance ≤ 5% → <strong className="text-red-400">75% Hedge</strong>
-            </span>
-          </div>
+          )}
         </div>
+
+        <form onSubmit={handleSavePolicy} className="mt-4 space-y-4 text-xs font-mono">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Warning Tier */}
+            <div className="p-3 bg-[#0d0f14] border border-amber-500/20 rounded">
+              <div className="font-bold text-amber-400 mb-2 flex items-center justify-between">
+                <span>WARNING TIER</span>
+                <span className="text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded">Tier 1</span>
+              </div>
+              <div className="space-y-2 text-neutral-300">
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={warningDist}
+                    onChange={(e) => setWarningDist(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={warningRatio}
+                    onChange={(e) => setWarningRatio(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Danger Tier */}
+            <div className="p-3 bg-[#0d0f14] border border-orange-500/20 rounded">
+              <div className="font-bold text-orange-400 mb-2 flex items-center justify-between">
+                <span>DANGER TIER</span>
+                <span className="text-[10px] bg-orange-500/10 px-1.5 py-0.5 rounded">Tier 2</span>
+              </div>
+              <div className="space-y-2 text-neutral-300">
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={dangerDist}
+                    onChange={(e) => setDangerDist(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={dangerRatio}
+                    onChange={(e) => setDangerRatio(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Critical Tier */}
+            <div className="p-3 bg-[#0d0f14] border border-red-500/20 rounded">
+              <div className="font-bold text-red-400 mb-2 flex items-center justify-between">
+                <span>CRITICAL TIER</span>
+                <span className="text-[10px] bg-red-500/10 px-1.5 py-0.5 rounded">Tier 3</span>
+              </div>
+              <div className="space-y-2 text-neutral-300">
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={criticalDist}
+                    onChange={(e) => setCriticalDist(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={criticalRatio}
+                    onChange={(e) => setCriticalRatio(parseFloat(e.target.value) || 0)}
+                    className="w-full px-2 py-1 bg-[#12141a] border border-[#232733] rounded text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={updatingPolicy}
+              className="flex items-center gap-1.5 px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save Policy Changes
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Emergency Kill Switch */}

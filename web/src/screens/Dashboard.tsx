@@ -1,10 +1,14 @@
-import React, { useMemo } from 'react';
-import { useQuery, useSubscription } from '@apollo/client';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useQuery, useSubscription, useMutation } from '@apollo/client';
 import {
   GET_CURRENT_SNAPSHOT,
+  GET_SNAPSHOTS,
   GET_EXECUTIONS,
   GET_ONCHAIN_OBLIGATION,
   SNAPSHOT_STREAM,
+  SET_SIMULATED_PRICE,
+  SIMULATE_PRICE_SHOCK,
+  RESET_SIMULATED_PRICE,
 } from '../graphql/operations';
 import { StatCard } from '../components/StatCard';
 import { RiskBadge } from '../components/RiskBadge';
@@ -12,11 +16,26 @@ import { PriceChart } from '../components/PriceChart';
 import { RiskEnginePanel } from '../components/RiskEnginePanel';
 import { EventFeed, EventItem } from '../components/EventFeed';
 import { RiskLevel } from '../theme/risk';
+import { Zap, RotateCcw, TrendingDown } from 'lucide-react';
+
+interface ChartPoint {
+  time: number;
+  value: number;
+}
 
 export const DashboardScreen: React.FC = () => {
+  const [customPriceInput, setCustomPriceInput] = useState('');
+  const [liveChartPoints, setLiveChartPoints] = useState<ChartPoint[]>([]);
+
   // Query initial snapshot & poll
-  const { data: snapshotData } = useQuery(GET_CURRENT_SNAPSHOT, {
-    pollInterval: 4000,
+  const { data: snapshotData, refetch: refetchCurrent } = useQuery(GET_CURRENT_SNAPSHOT, {
+    pollInterval: 3000,
+  });
+
+  // Query historical snapshots from Postgres
+  const { data: snapshotsData } = useQuery(GET_SNAPSHOTS, {
+    variables: { limit: 100 },
+    pollInterval: 10000,
   });
 
   // Query on-chain Solana obligation data
@@ -28,9 +47,31 @@ export const DashboardScreen: React.FC = () => {
   const { data: streamData } = useSubscription(SNAPSHOT_STREAM);
 
   // Query recent execution records for the event feed
-  const { data: executionsData } = useQuery(GET_EXECUTIONS, {
+  const { data: executionsData, refetch: refetchExecutions } = useQuery(GET_EXECUTIONS, {
     variables: { limit: 5 },
-    pollInterval: 4000,
+    pollInterval: 3000,
+  });
+
+  // Simulation mutations
+  const [setSimPriceMutation, { loading: settingPrice }] = useMutation(SET_SIMULATED_PRICE, {
+    onCompleted: () => {
+      refetchCurrent();
+      refetchExecutions();
+    },
+  });
+
+  const [shockMutation, { loading: shocking }] = useMutation(SIMULATE_PRICE_SHOCK, {
+    onCompleted: () => {
+      refetchCurrent();
+      refetchExecutions();
+    },
+  });
+
+  const [resetMutation, { loading: resetting }] = useMutation(RESET_SIMULATED_PRICE, {
+    onCompleted: () => {
+      refetchCurrent();
+      refetchExecutions();
+    },
   });
 
   const snap = streamData?.snapshotStream || snapshotData?.currentSnapshot;
@@ -48,8 +89,36 @@ export const DashboardScreen: React.FC = () => {
   const currentHedge = targetHedge;
   const netExposure = exposure - currentHedge;
 
-  // Chart price history
+  // Sync historical snapshots into liveChartPoints
+  useEffect(() => {
+    if (snapshotsData?.snapshots && snapshotsData.snapshots.length > 0) {
+      const historical: ChartPoint[] = snapshotsData.snapshots.map((s: any) => ({
+        time: Math.floor(new Date(s.timestamp).getTime() / 1000),
+        value: parseFloat(s.price),
+      }));
+      setLiveChartPoints(historical);
+    }
+  }, [snapshotsData]);
+
+  // Append incoming stream ticks to chart
+  useEffect(() => {
+    if (streamData?.snapshotStream) {
+      const newPoint: ChartPoint = {
+        time: Math.floor(new Date(streamData.snapshotStream.timestamp).getTime() / 1000),
+        value: parseFloat(streamData.snapshotStream.price),
+      };
+      setLiveChartPoints((prev) => {
+        if (prev.some((p) => p.time === newPoint.time)) return prev;
+        return [...prev, newPoint].slice(-150);
+      });
+    }
+  }, [streamData]);
+
+  // Combined chart data fallback if no points yet
   const chartData = useMemo(() => {
+    if (liveChartPoints.length > 0) {
+      return liveChartPoints;
+    }
     const nowSecs = Math.floor(Date.now() / 1000);
     return [
       { time: nowSecs - 21600, value: price * 1.15 },
@@ -60,7 +129,7 @@ export const DashboardScreen: React.FC = () => {
       { time: nowSecs - 3600, value: price * 1.01 },
       { time: nowSecs, value: price },
     ];
-  }, [price]);
+  }, [liveChartPoints, price]);
 
   // Derive recent activity from executions and live state
   const recentEvents: EventItem[] = useMemo(() => {
@@ -109,9 +178,37 @@ export const DashboardScreen: React.FC = () => {
     return events;
   }, [executionsData, riskLevel, targetHedge, distance, healthFactor]);
 
+  const handleShock = async (dropPct: number) => {
+    try {
+      await shockMutation({ variables: { dropPercentage: dropPct.toString() } });
+    } catch (e) {
+      console.error('Failed to trigger price shock:', e);
+    }
+  };
+
+  const handleSetCustomPrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseFloat(customPriceInput);
+    if (isNaN(parsed) || parsed <= 0) return;
+    try {
+      await setSimPriceMutation({ variables: { price: parsed.toString() } });
+      setCustomPriceInput('');
+    } catch (err) {
+      console.error('Failed to set custom price:', err);
+    }
+  };
+
+  const handleResetPrice = async () => {
+    try {
+      await resetMutation();
+    } catch (e) {
+      console.error('Failed to reset price to oracle:', e);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* On-Chain Solana Ingestion Banner */}
+      {/* On-Chain Solana Ingestion & Live Status Banner */}
       <div className="bg-[#12141a] border border-[#232733] rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -138,6 +235,70 @@ export const DashboardScreen: React.FC = () => {
           <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/30 text-[10px] uppercase font-bold">
             {obligationData?.obligation?.source === 'LiveRpc' ? 'Live RPC' : 'Kamino Ingested'}
           </span>
+        </div>
+      </div>
+
+      {/* Live Stress-Test & Simulation Action Bar */}
+      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 text-neutral-300 font-bold">
+          <Zap className="w-4 h-4 text-amber-400" />
+          <span>MARKET STRESS-TEST DRIVER:</span>
+        </div>
+
+        <div className="flex items-center flex-wrap gap-2">
+          <button
+            onClick={() => handleShock(10)}
+            disabled={shocking}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold transition-colors disabled:opacity-50"
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            -10% (Warning)
+          </button>
+
+          <button
+            onClick={() => handleShock(20)}
+            disabled={shocking}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 font-semibold transition-colors disabled:opacity-50"
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            -20% (Danger)
+          </button>
+
+          <button
+            onClick={() => handleShock(35)}
+            disabled={shocking}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold transition-colors disabled:opacity-50"
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            -35% (Critical Cliff)
+          </button>
+
+          <form onSubmit={handleSetCustomPrice} className="flex items-center gap-1">
+            <input
+              type="number"
+              step="0.01"
+              placeholder="$ Price"
+              value={customPriceInput}
+              onChange={(e) => setCustomPriceInput(e.target.value)}
+              className="w-24 px-2 py-1 bg-[#0a0b0e] border border-[#2b3040] rounded text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              type="submit"
+              disabled={settingPrice || !customPriceInput}
+              className="px-2.5 py-1 rounded bg-[#1f2430] hover:bg-[#2b3245] text-neutral-200 border border-[#333b4d] font-semibold transition-colors disabled:opacity-50"
+            >
+              Set
+            </button>
+          </form>
+
+          <button
+            onClick={handleResetPrice}
+            disabled={resetting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/40 transition-colors disabled:opacity-50 ml-1"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Oracle
+          </button>
         </div>
       </div>
 
