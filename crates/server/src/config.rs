@@ -13,6 +13,7 @@ pub struct ServerConfig {
     pub solana_rpc_url: String,
     pub solana_obligation_pubkey: String,
     pub safety: SafetyConfig,
+    pub hyperliquid: execution::HyperliquidConfig,
 }
 
 impl ServerConfig {
@@ -62,6 +63,8 @@ impl ServerConfig {
             kill_switch,
         };
 
+        let hyperliquid = execution::HyperliquidConfig::from_env();
+
         Self {
             database_url,
             redis_url,
@@ -71,6 +74,7 @@ impl ServerConfig {
             solana_rpc_url,
             solana_obligation_pubkey,
             safety,
+            hyperliquid,
         }
     }
 }

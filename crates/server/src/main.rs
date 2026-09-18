@@ -6,7 +6,7 @@ use axum::{
     Extension, Router,
 };
 use data::HistoricalScenario;
-use execution::SimulatedExecutor;
+use execution::{Executor, HyperliquidExecutor, SimulatedExecutor};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -107,7 +107,16 @@ async fn main() -> anyhow::Result<()> {
         .map(|p| p.price)
         .unwrap_or_default();
 
-    let executor = Arc::new(SimulatedExecutor::new(initial_price));
+    let executor: Arc<dyn Executor> = if config.hyperliquid.is_live_capable() {
+        info!(
+            "Initializing live Hyperliquid testnet executor (account={}, coin={})",
+            config.hyperliquid.account_address, config.hyperliquid.coin
+        );
+        Arc::new(HyperliquidExecutor::new(config.hyperliquid.clone()))
+    } else {
+        info!("Running with SimulatedExecutor (no live agent private key configured)");
+        Arc::new(SimulatedExecutor::new(initial_price))
+    };
 
     // 5. Build AppState
     let state = AppState::new(

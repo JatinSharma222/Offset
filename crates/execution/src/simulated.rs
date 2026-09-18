@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use chrono::Utc;
 use risk_engine::{Money, Ratio, RiskLevel};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -17,17 +16,7 @@ pub const DEFAULT_HOURLY_FUNDING_RATE: Decimal = Decimal::from_parts(1, 0, 0, fa
 /// Execution slippage in basis points applied to simulated orderbook fills (5 bps).
 pub const DEFAULT_SLIPPAGE_BPS: Decimal = Decimal::from_parts(5, 0, 0, false, 0);
 
-/// Clearinghouse position, P&L, and carry accounting snapshot from the simulated exchange.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ClearinghouseState {
-    pub position_notional: Money,
-    pub entry_price: Option<Money>,
-    pub unrealized_pnl: Money,
-    pub realized_pnl: Money,
-    pub total_pnl: Money,
-    pub cumulative_funding: Money,
-    pub cumulative_slippage: Money,
-}
+pub use crate::record::ClearinghouseState;
 
 #[derive(Debug, Clone)]
 pub struct SimulatedExecutor {

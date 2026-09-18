@@ -67,3 +67,15 @@ pub struct ExecutionRecord {
     pub cloid: Option<String>,
     pub note: Option<String>, // e.g. safety violation reason
 }
+
+/// Clearinghouse position, P&L, and carry accounting snapshot from the exchange.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClearinghouseState {
+    pub position_notional: Money,
+    pub entry_price: Option<Money>,
+    pub unrealized_pnl: Money,
+    pub realized_pnl: Money,
+    pub total_pnl: Money,
+    pub cumulative_funding: Money,
+    pub cumulative_slippage: Money,
+}
