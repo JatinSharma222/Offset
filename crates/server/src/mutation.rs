@@ -89,4 +89,60 @@ impl MutationRoot {
             kill_switch_active: active,
         })
     }
+
+    /// Sets a simulated price directly, forcing an immediate risk evaluation and hedge adjustment if required.
+    async fn set_simulated_price(
+        &self,
+        ctx: &Context<'_>,
+        price: Decimal,
+    ) -> Result<RiskSnapshotGql> {
+        let state = ctx.data::<AppState>()?;
+        *state.price_override.write().await = Some(price);
+        tracing::info!("Simulated market price set to ${}", price);
+
+        let snapshot = crate::orchestration::evaluate_and_orchestrate(state, Some(price)).await;
+        Ok(snapshot)
+    }
+
+    /// Simulates a sudden market crash / price shock by a specified drop percentage (e.g. 15.0 for 15% drop).
+    async fn simulate_price_shock(
+        &self,
+        ctx: &Context<'_>,
+        drop_percentage: Decimal,
+    ) -> Result<RiskSnapshotGql> {
+        let state = ctx.data::<AppState>()?;
+        let current_price = {
+            let pos = state.current_position.read().await;
+            pos.collateral
+                .iter()
+                .find(|c| c.asset == "SOL")
+                .map(|c| c.price)
+                .unwrap_or(Decimal::new(180, 0))
+        };
+
+        let factor = Decimal::ONE - (drop_percentage / Decimal::new(100, 0));
+        let shocked_price = (current_price * factor).round_dp(2);
+
+        *state.price_override.write().await = Some(shocked_price);
+        tracing::warn!(
+            "SIMULATED PRICE SHOCK: -{}% (price drop from ${} to ${})",
+            drop_percentage,
+            current_price,
+            shocked_price
+        );
+
+        let snapshot =
+            crate::orchestration::evaluate_and_orchestrate(state, Some(shocked_price)).await;
+        Ok(snapshot)
+    }
+
+    /// Resets the simulated price override, restoring real-time oracle price feeds.
+    async fn reset_simulated_price(&self, ctx: &Context<'_>) -> Result<RiskSnapshotGql> {
+        let state = ctx.data::<AppState>()?;
+        *state.price_override.write().await = None;
+        tracing::info!("Reset simulated price override. Resuming live oracle feed.");
+
+        let snapshot = crate::orchestration::evaluate_and_orchestrate(state, None).await;
+        Ok(snapshot)
+    }
 }

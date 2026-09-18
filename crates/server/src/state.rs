@@ -1,7 +1,9 @@
 use crate::config::ServerConfig;
 use crate::schema::{ExecutionRecordGql, RiskSnapshotGql};
+use data::{LivePriceOracle, SolanaRpcClient};
 use execution::{Executor, SafetyConfig};
 use risk_engine::{Position, RiskPolicy};
+use rust_decimal::Decimal;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
@@ -16,6 +18,9 @@ pub struct AppState {
     pub executor: Arc<dyn Executor>,
     pub current_position: Arc<RwLock<Position>>,
     pub latest_snapshot: Arc<RwLock<Option<RiskSnapshotGql>>>,
+    pub price_override: Arc<RwLock<Option<Decimal>>>,
+    pub price_oracle: Arc<LivePriceOracle>,
+    pub solana_client: Arc<SolanaRpcClient>,
     pub snapshot_sender: broadcast::Sender<RiskSnapshotGql>,
     pub execution_sender: broadcast::Sender<ExecutionRecordGql>,
 }
@@ -32,6 +37,9 @@ impl AppState {
         let (execution_sender, _) = broadcast::channel(100);
 
         let safety_config = config.safety.clone();
+        let price_oracle = Arc::new(LivePriceOracle::new(&config.live_price_feed_url));
+        let solana_client = Arc::new(SolanaRpcClient::new(&config.solana_rpc_url));
+
         Self {
             db_pool,
             redis_client,
@@ -41,6 +49,9 @@ impl AppState {
             executor,
             current_position: Arc::new(RwLock::new(initial_position)),
             latest_snapshot: Arc::new(RwLock::new(None)),
+            price_override: Arc::new(RwLock::new(None)),
+            price_oracle,
+            solana_client,
             snapshot_sender,
             execution_sender,
         }

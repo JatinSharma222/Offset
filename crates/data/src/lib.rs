@@ -5,7 +5,7 @@ pub mod solana;
 
 pub use fixtures::{DataError, HistoricalScenario, ScenarioMetadata};
 pub use positions::{create_lending_position, fetch_onchain_lending_position};
-pub use prices::PricePoint;
+pub use prices::{LivePriceOracle, PriceFeedError, PricePoint};
 pub use solana::{
     ObligationSource, OnChainBorrow, OnChainDeposit, OnChainObligation, SolanaError,
     SolanaRpcClient,
@@ -125,5 +125,12 @@ mod tests {
         assert_eq!(pos.collateral[0].asset, "SOL");
         assert_eq!(pos.collateral[0].price, Decimal::new(160, 0));
         assert_eq!(pos.debt[0].asset, "USDC");
+    }
+
+    #[tokio::test]
+    async fn test_live_price_oracle_handling() {
+        let oracle = LivePriceOracle::new("http://127.0.0.1:9999");
+        let res = oracle.fetch_asset_price("SOL").await;
+        assert!(res.is_err(), "Expected error for unreachable URL");
     }
 }

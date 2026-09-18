@@ -12,6 +12,9 @@ pub struct ServerConfig {
     pub min_hedge_adjustment_usd: Decimal,
     pub solana_rpc_url: String,
     pub solana_obligation_pubkey: String,
+    pub enable_solana_sync: bool,
+    pub enable_live_price_feed: bool,
+    pub live_price_feed_url: String,
     pub safety: SafetyConfig,
     pub hyperliquid: execution::HyperliquidConfig,
 }
@@ -39,6 +42,15 @@ impl ServerConfig {
             .unwrap_or_else(|_| "https://api.mainnet-beta.solana.com".to_string());
         let solana_obligation_pubkey = env::var("SOLANA_OBLIGATION_PUBKEY")
             .unwrap_or_else(|_| "7u3k7...KaminoObligation".to_string());
+        let enable_solana_sync = env::var("ENABLE_SOLANA_SYNC")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(false);
+
+        let enable_live_price_feed = env::var("ENABLE_LIVE_PRICE_FEED")
+            .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+            .unwrap_or(true);
+        let live_price_feed_url = env::var("LIVE_PRICE_FEED_URL")
+            .unwrap_or_else(|_| "https://api.hyperliquid-testnet.xyz/info".to_string());
 
         let max_total_notional = env::var("MAX_TOTAL_NOTIONAL_USD")
             .ok()
@@ -73,6 +85,9 @@ impl ServerConfig {
             min_hedge_adjustment_usd,
             solana_rpc_url,
             solana_obligation_pubkey,
+            enable_solana_sync,
+            enable_live_price_feed,
+            live_price_feed_url,
             safety,
             hyperliquid,
         }

@@ -12,6 +12,7 @@ async fn test_orchestration_loop_and_graphql_flow() {
     let mut config = ServerConfig::from_env();
     config.loop_interval_secs = 1; // 1 second for fast test
     config.min_hedge_adjustment_usd = Decimal::new(100, 0);
+    config.enable_live_price_feed = false; // Disable live oracle network calls for deterministic test
     config.safety = SafetyConfig {
         max_total_notional: Decimal::new(10_000_000, 0),
         max_single_order: Decimal::new(1_000_000, 0),
@@ -118,6 +119,38 @@ async fn test_orchestration_loop_and_graphql_flow() {
         "50000"
     );
     assert_eq!(obl_data["obligation"]["borrows"][0]["asset"], "USDC");
+
+    // Test simulation mutation: setSimulatedPrice
+    let sim_res = schema
+        .execute("mutation { setSimulatedPrice(price: 180.0) { price riskLevel } }")
+        .await;
+    assert!(sim_res.errors.is_empty(), "Errors: {:?}", sim_res.errors);
+    let sim_data = sim_res.data.into_json().unwrap();
+    let sim_price: Decimal = sim_data["setSimulatedPrice"]["price"].as_str().unwrap().parse().unwrap();
+    assert_eq!(sim_price, Decimal::new(180, 0));
+
+    // Test simulation mutation: simulatePriceShock (-15%)
+    let shock_res = schema
+        .execute("mutation { simulatePriceShock(dropPercentage: 15.0) { price } }")
+        .await;
+    assert!(
+        shock_res.errors.is_empty(),
+        "Errors: {:?}",
+        shock_res.errors
+    );
+    let shock_data = shock_res.data.into_json().unwrap();
+    let shock_price: Decimal = shock_data["simulatePriceShock"]["price"].as_str().unwrap().parse().unwrap();
+    assert_eq!(shock_price, Decimal::new(153, 0));
+
+    // Test reset simulated price
+    let reset_res = schema
+        .execute("mutation { resetSimulatedPrice { price } }")
+        .await;
+    assert!(
+        reset_res.errors.is_empty(),
+        "Errors: {:?}",
+        reset_res.errors
+    );
 
     // Stop loop task
     loop_handle.abort();
