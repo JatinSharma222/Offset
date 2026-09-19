@@ -89,6 +89,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         .map(([time, value]) => ({ time: time as any, value }));
 
       seriesRef.current.setData(sortedData);
+      chartRef.current?.timeScale().fitContent();
     }
 
     // Clear previous threshold lines to prevent visual stacking

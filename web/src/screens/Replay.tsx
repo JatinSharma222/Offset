@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { Play, RotateCcw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
 import { GET_SCENARIOS, RUN_REPLAY } from '../graphql/operations';
 import { RiskBadge } from '../components/RiskBadge';
 import { ImpactPanel } from '../components/ImpactPanel';
+import { PriceChart } from '../components/PriceChart';
 import { RiskLevel } from '../theme/risk';
 
 interface ReplayTickGql {
@@ -99,6 +100,41 @@ export const ReplayScreen: React.FC = () => {
   const currentTime = currentTick
     ? new Date(currentTick.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })
     : '2022-05-20 00:00';
+
+  const replayLiqPrice = currentTick?.snapshot?.liquidationPrice
+    ? parseFloat(currentTick.snapshot.liquidationPrice)
+    : ticks[0]?.snapshot?.liquidationPrice
+    ? parseFloat(ticks[0].snapshot.liquidationPrice)
+    : undefined;
+
+  const warningPrice = replayLiqPrice ? replayLiqPrice * 1.30 : undefined;
+  const dangerPrice = replayLiqPrice ? replayLiqPrice * 1.20 : undefined;
+  const criticalPrice = replayLiqPrice ? replayLiqPrice * 1.10 : undefined;
+
+  const replayChartData = useMemo(() => {
+    if (!ticks || ticks.length === 0) return [];
+    const activeTicks = ticks.slice(0, currentStepIndex + 1);
+    const seenTimes = new Set<number>();
+    const chartData: { time: number; value: number }[] = [];
+
+    for (const t of activeTicks) {
+      let tSec = Math.floor(new Date(t.timestamp).getTime() / 1000);
+      if (isNaN(tSec) || tSec <= 0) {
+        tSec = chartData.length > 0 ? chartData[chartData.length - 1].time + 60 : 1653000000;
+      }
+      if (chartData.length > 0 && tSec <= chartData[chartData.length - 1].time) {
+        tSec = chartData[chartData.length - 1].time + 60;
+      }
+      if (!seenTimes.has(tSec)) {
+        seenTimes.add(tSec);
+        chartData.push({
+          time: tSec,
+          value: parseFloat(t.price) || 0,
+        });
+      }
+    }
+    return chartData;
+  }, [ticks, currentStepIndex]);
 
   const executionFired = currentTick?.execution;
   const eventMessage = executionFired
@@ -218,6 +254,38 @@ export const ReplayScreen: React.FC = () => {
           </span>
         </div>
       )}
+
+      {/* Dynamic Price & Liquidation Trajectory Chart */}
+      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#232733] mb-4 gap-2">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+              Historical Price Trajectory vs. Liquidation Cliff
+            </h3>
+            <p className="text-xs text-neutral-400 font-mono mt-0.5">
+              Live progression of collateral price decay against hard liquidation threshold & dynamic hedge triggers
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-mono">
+            {replayLiqPrice && (
+              <span className="flex items-center gap-1.5 text-red-400">
+                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                Cliff: ${replayLiqPrice.toFixed(2)}
+              </span>
+            )}
+            <span className="text-neutral-500">
+              Frame {currentStepIndex + 1} / {ticks.length || 1}
+            </span>
+          </div>
+        </div>
+        <PriceChart
+          data={replayChartData}
+          liquidationPrice={replayLiqPrice}
+          warningPrice={warningPrice}
+          dangerPrice={dangerPrice}
+          criticalPrice={criticalPrice}
+        />
+      </div>
 
       {/* Head-to-Head Comparison Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

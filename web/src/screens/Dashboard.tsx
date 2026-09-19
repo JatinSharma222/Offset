@@ -9,6 +9,7 @@ import {
   SET_SIMULATED_PRICE,
   SIMULATE_PRICE_SHOCK,
   RESET_SIMULATED_PRICE,
+  TRIGGER_SAFETY_REFUSAL,
 } from '../graphql/operations';
 import { StatCard } from '../components/StatCard';
 import { RiskBadge } from '../components/RiskBadge';
@@ -16,7 +17,7 @@ import { PriceChart } from '../components/PriceChart';
 import { RiskEnginePanel } from '../components/RiskEnginePanel';
 import { EventFeed, EventItem } from '../components/EventFeed';
 import { RiskLevel } from '../theme/risk';
-import { Zap, RotateCcw, TrendingDown } from 'lucide-react';
+import { Zap, RotateCcw, TrendingDown, ShieldAlert } from 'lucide-react';
 
 interface ChartPoint {
   time: number;
@@ -70,6 +71,12 @@ export const DashboardScreen: React.FC = () => {
   const [resetMutation, { loading: resetting }] = useMutation(RESET_SIMULATED_PRICE, {
     onCompleted: () => {
       refetchCurrent();
+      refetchExecutions();
+    },
+  });
+
+  const [triggerRefusalMutation, { loading: triggeringRefusal }] = useMutation(TRIGGER_SAFETY_REFUSAL, {
+    onCompleted: () => {
       refetchExecutions();
     },
   });
@@ -206,6 +213,16 @@ export const DashboardScreen: React.FC = () => {
     }
   };
 
+  const handleTriggerRefusal = async () => {
+    try {
+      await triggerRefusalMutation({
+        variables: { checkType: 'max_single_order' },
+      });
+    } catch (e) {
+      console.error('Failed to trigger safety refusal:', e);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* On-Chain Solana Ingestion & Live Status Banner */}
@@ -298,6 +315,16 @@ export const DashboardScreen: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset Oracle
+          </button>
+
+          <button
+            onClick={handleTriggerRefusal}
+            disabled={triggeringRefusal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-semibold transition-colors disabled:opacity-50 ml-1"
+            title="Deliberately trigger a pre-trade safety limit refusal (> $1M order limit) to show audit log and order book snapshot"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Trigger Safety Refusal
           </button>
         </div>
       </div>

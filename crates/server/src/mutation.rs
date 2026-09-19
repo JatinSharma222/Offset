@@ -145,4 +145,167 @@ impl MutationRoot {
         let snapshot = crate::orchestration::evaluate_and_orchestrate(state, None).await;
         Ok(snapshot)
     }
+
+    /// Deliberately triggers a pre-trade safety rail refusal (e.g. single order clip limit exceeded)
+    /// to demonstrate risk controls and audit logging with decision-time order book snapshots.
+    async fn trigger_safety_refusal(
+        &self,
+        ctx: &Context<'_>,
+        check_type: Option<String>,
+    ) -> Result<ExecutionRecordGql> {
+        let state = ctx.data::<AppState>()?;
+        let check = check_type.unwrap_or_else(|| "max_single_order".to_string());
+
+        let sol_price = {
+            let pos = state.current_position.read().await;
+            pos.collateral
+                .iter()
+                .find(|c| c.asset == "SOL")
+                .map(|c| c.price)
+                .unwrap_or(Decimal::new(180, 0))
+        };
+
+        let bids = vec![
+            execution::BookLevel {
+                price: sol_price - Decimal::new(5, 2),
+                size: Decimal::new(2500, 0),
+            },
+            execution::BookLevel {
+                price: sol_price - Decimal::new(10, 2),
+                size: Decimal::new(5200, 0),
+            },
+            execution::BookLevel {
+                price: sol_price - Decimal::new(15, 2),
+                size: Decimal::new(8400, 0),
+            },
+            execution::BookLevel {
+                price: sol_price - Decimal::new(25, 2),
+                size: Decimal::new(12000, 0),
+            },
+            execution::BookLevel {
+                price: sol_price - Decimal::new(40, 2),
+                size: Decimal::new(21000, 0),
+            },
+        ];
+        let asks = vec![
+            execution::BookLevel {
+                price: sol_price + Decimal::new(5, 2),
+                size: Decimal::new(2100, 0),
+            },
+            execution::BookLevel {
+                price: sol_price + Decimal::new(10, 2),
+                size: Decimal::new(4800, 0),
+            },
+            execution::BookLevel {
+                price: sol_price + Decimal::new(15, 2),
+                size: Decimal::new(7600, 0),
+            },
+            execution::BookLevel {
+                price: sol_price + Decimal::new(25, 2),
+                size: Decimal::new(11500, 0),
+            },
+            execution::BookLevel {
+                price: sol_price + Decimal::new(40, 2),
+                size: Decimal::new(19500, 0),
+            },
+        ];
+        let book = execution::BookSnapshot { bids, asks };
+
+        let (target_notional, violation, note) = match check.as_str() {
+            "book_too_thin" => (
+                Decimal::new(2_500_000, 0),
+                execution::SafetyViolation::BookTooThin {
+                    available_depth: Decimal::new(450_000, 0),
+                    needed: Decimal::new(2_500_000, 0),
+                },
+                "Top-of-book depth ($450K) below required liquidity tolerance".to_string(),
+            ),
+            "insufficient_margin" => (
+                Decimal::new(4_000_000, 0),
+                execution::SafetyViolation::InsufficientMargin {
+                    required: Decimal::new(800_000, 0),
+                    available: Decimal::new(500_000, 0),
+                },
+                "Required margin ($800K) exceeds available account margin ($500K)".to_string(),
+            ),
+            _ => (
+                Decimal::new(2_500_000, 0),
+                execution::SafetyViolation::MaxSingleOrderExceeded {
+                    size: Decimal::new(2_500_000, 0),
+                    cap: state.config.safety.max_single_order,
+                },
+                format!(
+                    "Single clip size ${} exceeds configured maximum ${}",
+                    Decimal::new(2_500_000, 0),
+                    state.config.safety.max_single_order
+                ),
+            ),
+        };
+
+        let record = execution::ExecutionRecord {
+            id: uuid::Uuid::new_v4(),
+            timestamp: chrono::Utc::now(),
+            risk_level: risk_engine::RiskLevel::Danger,
+            liquidation_distance: Some(Decimal::new(82, 3)),
+            target_notional,
+            filled_notional: Decimal::ZERO,
+            avg_fill_price: None,
+            reference_price: sol_price,
+            slippage_bps: None,
+            residual_exposure: target_notional,
+            status: execution::ExecutionStatus::Refused(violation),
+            book_snapshot: Some(book),
+            cloid: None,
+            note: Some(note.clone()),
+        };
+
+        if let Some(pool) = &state.db_pool {
+            if let Err(e) = db::insert_execution(pool, &record).await {
+                tracing::error!("Failed to persist deliberate safety refusal: {:?}", e);
+            }
+        }
+
+        let book_snapshot_gql = record.book_snapshot.as_ref().map(|b| BookSnapshotGql {
+            bids: b
+                .bids
+                .iter()
+                .map(|l| BookLevelGql {
+                    price: l.price,
+                    size: l.size,
+                })
+                .collect(),
+            asks: b
+                .asks
+                .iter()
+                .map(|l| BookLevelGql {
+                    price: l.price,
+                    size: l.size,
+                })
+                .collect(),
+        });
+
+        let rec_gql = ExecutionRecordGql {
+            id: record.id.to_string(),
+            timestamp: record.timestamp,
+            risk_level: record.risk_level.into(),
+            liquidation_distance: record.liquidation_distance,
+            target_notional: record.target_notional,
+            filled_notional: record.filled_notional,
+            avg_fill_price: record.avg_fill_price,
+            reference_price: record.reference_price,
+            slippage_bps: record.slippage_bps,
+            residual_exposure: record.residual_exposure,
+            status: ExecutionStatusGql::Refused,
+            note: record.note.clone(),
+            book_snapshot: book_snapshot_gql,
+        };
+
+        let _ = state.execution_sender.send(rec_gql.clone());
+        if let Some(client) = &state.redis_client {
+            let _ = crate::redis::publish_execution(client, &rec_gql).await;
+        }
+
+        tracing::info!("Pre-trade safety refusal recorded: {}", note);
+        Ok(rec_gql)
+    }
 }

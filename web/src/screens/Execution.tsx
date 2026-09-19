@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useSubscription } from '@apollo/client';
 import { GET_EXECUTIONS, EXECUTION_STREAM } from '../graphql/operations';
 import { ExecutionTable, ExecutionRow } from '../components/ExecutionTable';
 
 export const ExecutionScreen: React.FC = () => {
+  const [liveExecutions, setLiveExecutions] = useState<ExecutionRow[]>([]);
+
   const { data: queryData } = useQuery(GET_EXECUTIONS, {
     variables: { limit: 50 },
     pollInterval: 4000,
@@ -92,74 +94,63 @@ export const ExecutionScreen: React.FC = () => {
     },
   ];
 
-  const executions: ExecutionRow[] = useMemo(() => {
+  const mapExecution = (e: any): ExecutionRow => {
+    const timeStr = new Date(e.timestamp).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const statusClean =
+      e.status === 'FILLED' || e.status === 'Filled'
+        ? 'Filled'
+        : e.status === 'PARTIALLY_FILLED' || e.status === 'PartiallyFilled'
+        ? 'PartiallyFilled'
+        : e.status === 'REFUSED' || e.status === 'Refused'
+        ? 'Refused'
+        : 'Failed';
+
+    return {
+      id: e.id,
+      time: timeStr,
+      riskLevel: e.riskLevel,
+      target: parseFloat(e.targetNotional),
+      filled: parseFloat(e.filledNotional),
+      slippageBps: e.slippageBps ? parseFloat(e.slippageBps) : undefined,
+      residual: parseFloat(e.residualExposure),
+      status: statusClean,
+      statusNote: e.note,
+      bookSnapshot: e.bookSnapshot
+        ? {
+            bids: e.bookSnapshot.bids.map((b: any) => ({
+              price: parseFloat(b.price),
+              size: parseFloat(b.size),
+            })),
+            asks: e.bookSnapshot.asks.map((a: any) => ({
+              price: parseFloat(a.price),
+              size: parseFloat(a.size),
+            })),
+          }
+        : undefined,
+    };
+  };
+
+  useEffect(() => {
     if (queryData?.executions && queryData.executions.length > 0) {
-      return queryData.executions.map((e: any) => {
-        const timeStr = new Date(e.timestamp).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        });
-        const statusClean =
-          e.status === 'FILLED' || e.status === 'Filled'
-            ? 'Filled'
-            : e.status === 'PARTIALLY_FILLED' || e.status === 'PartiallyFilled'
-            ? 'PartiallyFilled'
-            : e.status === 'REFUSED' || e.status === 'Refused'
-            ? 'Refused'
-            : 'Failed';
-
-        return {
-          id: e.id,
-          time: timeStr,
-          riskLevel: e.riskLevel,
-          target: parseFloat(e.targetNotional),
-          filled: parseFloat(e.filledNotional),
-          slippageBps: e.slippageBps ? parseFloat(e.slippageBps) : undefined,
-          residual: parseFloat(e.residualExposure),
-          status: statusClean,
-          statusNote: e.note,
-          bookSnapshot: e.bookSnapshot
-            ? {
-                bids: e.bookSnapshot.bids.map((b: any) => ({
-                  price: parseFloat(b.price),
-                  size: parseFloat(b.size),
-                })),
-                asks: e.bookSnapshot.asks.map((a: any) => ({
-                  price: parseFloat(a.price),
-                  size: parseFloat(a.size),
-                })),
-              }
-            : undefined,
-        };
-      });
+      const mapped = queryData.executions.map(mapExecution);
+      setLiveExecutions(mapped);
     }
+  }, [queryData]);
 
+  useEffect(() => {
     if (streamData?.executionStream) {
-      const e = streamData.executionStream;
-      const timeStr = new Date(e.timestamp).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      return [
-        {
-          id: e.id,
-          time: timeStr,
-          riskLevel: e.riskLevel,
-          target: parseFloat(e.targetNotional),
-          filled: parseFloat(e.filledNotional),
-          slippageBps: e.slippageBps ? parseFloat(e.slippageBps) : undefined,
-          residual: parseFloat(e.residualExposure),
-          status: 'Filled',
-          statusNote: e.note,
-        },
-        ...fallbackData,
-      ];
+      const newRec = mapExecution(streamData.executionStream);
+      setLiveExecutions((prev) => [newRec, ...prev.filter((r) => r.id !== newRec.id)]);
     }
+  }, [streamData]);
 
-    return fallbackData;
-  }, [queryData, streamData]);
+  const executions = useMemo(() => {
+    return liveExecutions.length > 0 ? liveExecutions : fallbackData;
+  }, [liveExecutions]);
 
   const filledCount = executions.filter((e) => e.status === 'Filled').length;
   const fillRate = executions.length > 0 ? ((filledCount / executions.length) * 100).toFixed(1) : '100.0';

@@ -257,6 +257,35 @@ export const RESET_SIMULATED_PRICE = gql`
   }
 `;
 
+export const TRIGGER_SAFETY_REFUSAL = gql`
+  mutation TriggerSafetyRefusal($checkType: String) {
+    triggerSafetyRefusal(checkType: $checkType) {
+      id
+      timestamp
+      riskLevel
+      liquidationDistance
+      targetNotional
+      filledNotional
+      avgFillPrice
+      referencePrice
+      slippageBps
+      residualExposure
+      status
+      note
+      bookSnapshot {
+        bids {
+          price
+          size
+        }
+        asks {
+          price
+          size
+        }
+      }
+    }
+  }
+`;
+
 export const SNAPSHOT_STREAM = gql`
   subscription OnSnapshotStream {
     snapshotStream {
@@ -293,6 +322,16 @@ export const EXECUTION_STREAM = gql`
       residualExposure
       status
       note
+      bookSnapshot {
+        bids {
+          price
+          size
+        }
+        asks {
+          price
+          size
+        }
+      }
     }
   }
 `;
