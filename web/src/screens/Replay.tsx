@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { Play, RotateCcw, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
+import { Play, Pause, RotateCcw, AlertTriangle, ShieldCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { GET_SCENARIOS, RUN_REPLAY } from '../graphql/operations';
 import { RiskBadge } from '../components/RiskBadge';
 import { ImpactPanel } from '../components/ImpactPanel';
@@ -33,6 +33,7 @@ export const ReplayScreen: React.FC = () => {
   const [selectedScenarioId, setSelectedScenarioId] = useState('solend-whale-2022');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [speed, setSpeed] = useState<number>(1);
 
   const { data: scenariosData } = useQuery(GET_SCENARIOS);
   const { data: replayData, loading: replayLoading } = useQuery(RUN_REPLAY, {
@@ -52,6 +53,7 @@ export const ReplayScreen: React.FC = () => {
   useEffect(() => {
     let timer: any;
     if (isPlaying && ticks.length > 0) {
+      const intervalMs = Math.max(100, Math.floor(800 / speed));
       timer = setInterval(() => {
         setCurrentStepIndex((prev) => {
           if (prev < ticks.length - 1) {
@@ -61,10 +63,10 @@ export const ReplayScreen: React.FC = () => {
             return prev;
           }
         });
-      }, 800);
+      }, intervalMs);
     }
     return () => clearInterval(timer);
-  }, [isPlaying, ticks.length]);
+  }, [isPlaying, ticks.length, speed]);
 
   const currentTick = ticks[currentStepIndex];
   const isComplete = ticks.length > 0 && currentStepIndex === ticks.length - 1;
@@ -176,33 +178,108 @@ export const ReplayScreen: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Play / Pause */}
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             disabled={replayLoading || ticks.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold rounded transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold rounded transition-colors"
           >
-            <Play className="w-4 h-4 fill-white" />
-            {isPlaying ? 'Pause' : isComplete ? 'Replay Finished' : 'Play Defense'}
+            {isPlaying ? (
+              <>
+                <Pause className="w-3.5 h-3.5 fill-white" /> Pause
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5 fill-white" /> {isComplete ? 'Replay Finished' : 'Play Defense'}
+              </>
+            )}
           </button>
+
+          {/* Step Back / Forward */}
+          <button
+            onClick={() => {
+              setIsPlaying(false);
+              setCurrentStepIndex((prev) => Math.max(prev - 1, 0));
+            }}
+            disabled={currentStepIndex <= 0}
+            className="p-1.5 bg-[#181b22] hover:bg-[#232733] disabled:opacity-30 text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            title="Previous Step"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => {
+              setIsPlaying(false);
+              setCurrentStepIndex((prev) => Math.min(prev + 1, ticks.length - 1));
+            }}
+            disabled={ticks.length === 0 || currentStepIndex >= ticks.length - 1}
+            className="p-1.5 bg-[#181b22] hover:bg-[#232733] disabled:opacity-30 text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            title="Next Step"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Speed Selector */}
+          <div className="flex items-center bg-[#151922] border border-[#232733] rounded p-0.5">
+            {[1, 2, 4].map((spd) => (
+              <button
+                key={spd}
+                onClick={() => setSpeed(spd)}
+                className={`px-2 py-0.5 text-xs font-mono rounded ${
+                  speed === spd ? 'bg-indigo-600 text-white font-bold' : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={handleReset}
-            className="flex items-center gap-2 px-3 py-2 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-sm rounded border border-[#232733] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
             Reset
           </button>
+
           <button
             onClick={handleDownloadCsv}
             disabled={ticks.length === 0}
-            className="flex items-center gap-2 px-3 py-2 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-sm rounded border border-[#232733] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
             title="Export full replay audit CSV"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5" />
             CSV
           </button>
         </div>
       </div>
+
+      {/* Interactive Timeline Scrubber */}
+      {ticks.length > 0 && (
+        <div className="flex items-center gap-4 bg-[#12141a] border border-[#232733] px-4 py-2.5 rounded-lg text-xs font-mono">
+          <span className="text-neutral-400 font-semibold whitespace-nowrap">TIMELINE</span>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(ticks.length - 1, 0)}
+            value={currentStepIndex}
+            onChange={(e) => {
+              setIsPlaying(false);
+              setCurrentStepIndex(parseInt(e.target.value, 10));
+            }}
+            className="w-full accent-indigo-500 h-1.5 bg-[#1e2330] rounded-lg cursor-pointer"
+          />
+          <div className="flex items-center gap-2 whitespace-nowrap text-neutral-400">
+            <span className="text-white font-bold tabular-nums">
+              {currentStepIndex + 1}
+            </span>
+            <span>/</span>
+            <span className="tabular-nums">{ticks.length}</span>
+          </div>
+        </div>
+      )}
 
       {/* Animation Status HUD */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-[#12141a] border border-[#232733] p-5 rounded-lg">
