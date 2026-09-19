@@ -335,3 +335,25 @@ export const EXECUTION_STREAM = gql`
     }
   }
 `;
+
+export const SET_OBLIGATION_PARAMETERS = gql`
+  mutation SetObligationParameters($input: ObligationParametersInput!) {
+    setObligationParameters(input: $input) {
+      id
+      timestamp
+      price
+      collateralValue
+      riskAdjustedCollateral
+      debtValue
+      healthFactor
+      liquidationPrice
+      liquidationDistance
+      riskLevel
+      emergency
+      exposure
+      hedgeRatio
+      targetHedge
+    }
+  }
+`;
+

@@ -308,4 +308,118 @@ impl MutationRoot {
         tracing::info!("Pre-trade safety refusal recorded: {}", note);
         Ok(rec_gql)
     }
+
+    /// Allows dynamically switching or customizing scenario obligation parameters (e.g. Kamino vs. Solend) directly on the live dashboard.
+    async fn set_obligation_parameters(
+        &self,
+        ctx: &Context<'_>,
+        input: ObligationParametersInput,
+    ) -> Result<RiskSnapshotGql> {
+        let state = ctx.data::<AppState>()?;
+        let current_sol_price = {
+            let pos = state.current_position.read().await;
+            pos.collateral
+                .iter()
+                .find(|c| c.asset == "SOL")
+                .map(|c| c.price)
+                .unwrap_or(Decimal::new(180, 0))
+        };
+
+        let (new_position, new_obligation) = match input.protocol.as_deref() {
+            Some("kamino") | Some("Kamino") => {
+                // Kamino Lending Vault: 50,000 SOL deposited, $6.5M USDC debt, LT 0.80
+                let pos = data::positions::create_lending_position(
+                    "SOL",
+                    Decimal::new(50000, 0),
+                    current_sol_price,
+                    Decimal::new(80, 2),
+                    Decimal::new(6500000, 0),
+                );
+                let obl = data::OnChainObligation::mock_kamino_obligation();
+                (pos, obl)
+            }
+            Some("solend") | Some("Solend") | Some("save") | Some("Save") => {
+                // Save / Solend Pool: 100,000 SOL deposited, $14M USDC debt, LT 0.80
+                let pos = data::positions::create_lending_position(
+                    "SOL",
+                    Decimal::new(100000, 0),
+                    current_sol_price,
+                    Decimal::new(80, 2),
+                    Decimal::new(14000000, 0),
+                );
+                let obl = data::OnChainObligation::mock_save_obligation();
+                (pos, obl)
+            }
+            Some("solend-whale") | Some("solend_whale") | Some("Solend Whale") => {
+                // Solend Whale Historical: 5.7M SOL, $108M USDC debt, LT 0.80
+                let pos = data::positions::create_lending_position(
+                    "SOL",
+                    Decimal::new(5700000, 0),
+                    current_sol_price,
+                    Decimal::new(80, 2),
+                    Decimal::new(108000000, 0),
+                );
+                let obl = data::OnChainObligation {
+                    pubkey: "3vHj...SolendWhaleObligation".to_string(),
+                    owner: "4xQe...WhaleAuthority".to_string(),
+                    lending_market: "Solend Whale Reserve".to_string(),
+                    deposits: vec![data::OnChainDeposit {
+                        reserve_pubkey: "8PnG...SaveSolReserve".to_string(),
+                        asset: "SOL".to_string(),
+                        deposited_amount: Decimal::new(5700000, 0),
+                        liquidation_threshold: Decimal::new(80, 2),
+                    }],
+                    borrows: vec![data::OnChainBorrow {
+                        reserve_pubkey: "BgXx...SaveUsdcReserve".to_string(),
+                        asset: "USDC".to_string(),
+                        borrowed_amount: Decimal::new(108000000, 0),
+                    }],
+                    source: data::ObligationSource::MockSave,
+                };
+                (pos, obl)
+            }
+            _ => {
+                let col_amt = input.collateral_amount.unwrap_or(Decimal::new(50000, 0));
+                let debt_amt = input.debt_amount.unwrap_or(Decimal::new(6500000, 0));
+                let lt = input.liquidation_threshold.unwrap_or(Decimal::new(80, 2));
+                let pos = data::positions::create_lending_position(
+                    "SOL",
+                    col_amt,
+                    current_sol_price,
+                    lt,
+                    debt_amt,
+                );
+                let obl = data::OnChainObligation {
+                    pubkey: "Custom...UserObligation".to_string(),
+                    owner: "Custom...VaultAuthority".to_string(),
+                    lending_market: "Custom Solana Obligation".to_string(),
+                    deposits: vec![data::OnChainDeposit {
+                        reserve_pubkey: "Custom...SolReserve".to_string(),
+                        asset: "SOL".to_string(),
+                        deposited_amount: col_amt,
+                        liquidation_threshold: lt,
+                    }],
+                    borrows: vec![data::OnChainBorrow {
+                        reserve_pubkey: "Custom...UsdcReserve".to_string(),
+                        asset: "USDC".to_string(),
+                        borrowed_amount: debt_amt,
+                    }],
+                    source: data::ObligationSource::MockKamino,
+                };
+                (pos, obl)
+            }
+        };
+
+        *state.current_position.write().await = new_position;
+        *state.current_obligation.write().await = new_obligation;
+        tracing::info!(
+            "Live obligation parameters customized: protocol={:?}, collateral={:?}, debt={:?}",
+            input.protocol,
+            input.collateral_amount,
+            input.debt_amount
+        );
+
+        let snapshot = crate::orchestration::evaluate_and_orchestrate(state, None).await;
+        Ok(snapshot)
+    }
 }

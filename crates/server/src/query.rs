@@ -268,9 +268,12 @@ impl QueryRoot {
         pubkey: Option<String>,
     ) -> Result<OnChainObligationGql> {
         let state = ctx.data::<AppState>()?;
-        let target_pubkey = pubkey.unwrap_or_else(|| state.config.solana_obligation_pubkey.clone());
-        let client = data::SolanaRpcClient::new(&state.config.solana_rpc_url);
-        let obl = client.fetch_obligation_with_fallback(&target_pubkey).await;
+        let obl = if let Some(ref pk) = pubkey {
+            let client = data::SolanaRpcClient::new(&state.config.solana_rpc_url);
+            client.fetch_obligation_with_fallback(pk).await
+        } else {
+            state.current_obligation.read().await.clone()
+        };
 
         Ok(OnChainObligationGql {
             pubkey: obl.pubkey,

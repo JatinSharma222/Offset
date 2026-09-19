@@ -17,6 +17,7 @@ pub struct AppState {
     pub safety_config: Arc<RwLock<SafetyConfig>>,
     pub executor: Arc<dyn Executor>,
     pub current_position: Arc<RwLock<Position>>,
+    pub current_obligation: Arc<RwLock<data::OnChainObligation>>,
     pub latest_snapshot: Arc<RwLock<Option<RiskSnapshotGql>>>,
     pub price_override: Arc<RwLock<Option<Decimal>>>,
     pub price_oracle: Arc<LivePriceOracle>,
@@ -39,6 +40,7 @@ impl AppState {
         let safety_config = config.safety.clone();
         let price_oracle = Arc::new(LivePriceOracle::new(&config.live_price_feed_url));
         let solana_client = Arc::new(SolanaRpcClient::new(&config.solana_rpc_url));
+        let initial_obligation = data::OnChainObligation::mock_kamino_obligation();
 
         Self {
             db_pool,
@@ -48,6 +50,7 @@ impl AppState {
             safety_config: Arc::new(RwLock::new(safety_config)),
             executor,
             current_position: Arc::new(RwLock::new(initial_position)),
+            current_obligation: Arc::new(RwLock::new(initial_obligation)),
             latest_snapshot: Arc::new(RwLock::new(None)),
             price_override: Arc::new(RwLock::new(None)),
             price_oracle,

@@ -10,6 +10,7 @@ import {
   SIMULATE_PRICE_SHOCK,
   RESET_SIMULATED_PRICE,
   TRIGGER_SAFETY_REFUSAL,
+  SET_OBLIGATION_PARAMETERS,
 } from '../graphql/operations';
 import { StatCard } from '../components/StatCard';
 import { RiskBadge } from '../components/RiskBadge';
@@ -17,7 +18,7 @@ import { PriceChart } from '../components/PriceChart';
 import { RiskEnginePanel } from '../components/RiskEnginePanel';
 import { EventFeed, EventItem } from '../components/EventFeed';
 import { RiskLevel } from '../theme/risk';
-import { Zap, RotateCcw, TrendingDown, ShieldAlert } from 'lucide-react';
+import { Zap, RotateCcw, TrendingDown, ShieldAlert, Sliders } from 'lucide-react';
 
 interface ChartPoint {
   time: number;
@@ -27,6 +28,13 @@ interface ChartPoint {
 export const DashboardScreen: React.FC = () => {
   const [customPriceInput, setCustomPriceInput] = useState('');
   const [liveChartPoints, setLiveChartPoints] = useState<ChartPoint[]>([]);
+
+  // Protocol Scenario State
+  const [selectedProtocol, setSelectedProtocol] = useState<'kamino' | 'solend' | 'solend-whale' | 'custom'>('kamino');
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customCollateral, setCustomCollateral] = useState('50000');
+  const [customDebt, setCustomDebt] = useState('6500000');
+  const [customLt, setCustomLt] = useState('80');
 
   // Query initial snapshot & poll
   const { data: snapshotData, refetch: refetchCurrent } = useQuery(GET_CURRENT_SNAPSHOT, {
@@ -40,7 +48,7 @@ export const DashboardScreen: React.FC = () => {
   });
 
   // Query on-chain Solana obligation data
-  const { data: obligationData } = useQuery(GET_ONCHAIN_OBLIGATION, {
+  const { data: obligationData, refetch: refetchObligation } = useQuery(GET_ONCHAIN_OBLIGATION, {
     pollInterval: 10000,
   });
 
@@ -80,6 +88,17 @@ export const DashboardScreen: React.FC = () => {
       refetchExecutions();
     },
   });
+
+  const [setObligationParamsMutation, { loading: updatingObligation }] = useMutation(
+    SET_OBLIGATION_PARAMETERS,
+    {
+      onCompleted: () => {
+        refetchCurrent();
+        refetchObligation();
+        refetchExecutions();
+      },
+    }
+  );
 
   const snap = streamData?.snapshotStream || snapshotData?.currentSnapshot;
 
@@ -223,6 +242,43 @@ export const DashboardScreen: React.FC = () => {
     }
   };
 
+  const handleSelectProtocol = async (proto: 'kamino' | 'solend' | 'solend-whale') => {
+    setSelectedProtocol(proto);
+    try {
+      await setObligationParamsMutation({
+        variables: {
+          input: { protocol: proto },
+        },
+      });
+    } catch (e) {
+      console.error('Failed to switch obligation scenario:', e);
+    }
+  };
+
+  const handleApplyCustom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const colAmt = parseFloat(customCollateral);
+    const debtAmt = parseFloat(customDebt);
+    const ltPct = parseFloat(customLt);
+    if (isNaN(colAmt) || isNaN(debtAmt) || isNaN(ltPct)) return;
+
+    setSelectedProtocol('custom');
+    try {
+      await setObligationParamsMutation({
+        variables: {
+          input: {
+            protocol: 'custom',
+            collateralAmount: colAmt.toString(),
+            debtAmount: debtAmt.toString(),
+            liquidationThreshold: (ltPct / 100).toString(),
+          },
+        },
+      });
+    } catch (e) {
+      console.error('Failed to apply custom obligation parameters:', e);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* On-Chain Solana Ingestion & Live Status Banner */}
@@ -238,21 +294,134 @@ export const DashboardScreen: React.FC = () => {
           </span>
           <span className="text-neutral-500">|</span>
           <span className="text-neutral-400">
-            Market: <span className="text-indigo-400">Kamino Lending Vault</span>
+            Market: <span className="text-indigo-400">{obligationData?.obligation?.lendingMarket || 'Kamino Lending Vault'}</span>
           </span>
         </div>
         <div className="flex items-center gap-4 text-neutral-400">
           <span>
-            Deposits: <span className="text-white font-bold">{obligationData?.obligation?.deposits?.[0]?.depositedAmount ? parseFloat(obligationData.obligation.deposits[0].depositedAmount).toLocaleString() : '50,000'} SOL</span> (LT: 80%)
+            Deposits: <span className="text-white font-bold">{obligationData?.obligation?.deposits?.[0]?.depositedAmount ? parseFloat(obligationData.obligation.deposits[0].depositedAmount).toLocaleString() : '50,000'} SOL</span> (LT: {obligationData?.obligation?.deposits?.[0]?.liquidationThreshold ? (parseFloat(obligationData.obligation.deposits[0].liquidationThreshold) * 100).toFixed(0) : '80'}%)
           </span>
           <span className="text-neutral-600">•</span>
           <span>
             Debt: <span className="text-white font-bold">${obligationData?.obligation?.borrows?.[0]?.borrowedAmount ? (parseFloat(obligationData.obligation.borrows[0].borrowedAmount) / 1_000_000).toFixed(2) : '6.50'}M USDC</span>
           </span>
           <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/30 text-[10px] uppercase font-bold">
-            {obligationData?.obligation?.source === 'LiveRpc' ? 'Live RPC' : 'Kamino Ingested'}
+            {obligationData?.obligation?.source || 'Kamino Ingested'}
           </span>
         </div>
+      </div>
+
+      {/* Scenario-Specific Parameter Customizer */}
+      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 space-y-3 text-xs font-mono">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-neutral-300 font-bold">
+            <Sliders className="w-4 h-4 text-indigo-400" />
+            <span>SOLANA OBLIGATION SCENARIO:</span>
+          </div>
+
+          <div className="flex items-center flex-wrap gap-2">
+            <button
+              onClick={() => handleSelectProtocol('kamino')}
+              disabled={updatingObligation}
+              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                selectedProtocol === 'kamino'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+              }`}
+            >
+              <span>Kamino Vault</span>
+              <span className="text-[10px] opacity-75">(50k SOL · $6.5M · Cliff $162.50)</span>
+            </button>
+
+            <button
+              onClick={() => handleSelectProtocol('solend')}
+              disabled={updatingObligation}
+              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                selectedProtocol === 'solend'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+              }`}
+            >
+              <span>Save / Solend</span>
+              <span className="text-[10px] opacity-75">(100k SOL · $14M · Cliff $175.00)</span>
+            </button>
+
+            <button
+              onClick={() => handleSelectProtocol('solend-whale')}
+              disabled={updatingObligation}
+              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                selectedProtocol === 'solend-whale'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+              }`}
+            >
+              <span>Solend Whale</span>
+              <span className="text-[10px] opacity-75">(5.7M SOL · $108M)</span>
+            </button>
+
+            <button
+              onClick={() => setShowCustomForm(!showCustomForm)}
+              className={`px-3 py-1.5 rounded border transition-colors font-semibold ${
+                showCustomForm || selectedProtocol === 'custom'
+                  ? 'bg-[#232733] text-indigo-300 border-indigo-500/50'
+                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white'
+              }`}
+            >
+              Custom Params {showCustomForm ? '▲' : '▼'}
+            </button>
+          </div>
+        </div>
+
+        {/* Expandable Custom Parameter Form */}
+        {showCustomForm && (
+          <form onSubmit={handleApplyCustom} className="pt-3 border-t border-[#1e222d] flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-400">Collateral:</span>
+              <input
+                type="number"
+                value={customCollateral}
+                onChange={(e) => setCustomCollateral(e.target.value)}
+                placeholder="SOL Amount"
+                className="w-28 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+              />
+              <span className="text-neutral-500">SOL</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-400">Debt:</span>
+              <input
+                type="number"
+                value={customDebt}
+                onChange={(e) => setCustomDebt(e.target.value)}
+                placeholder="USDC Debt"
+                className="w-32 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+              />
+              <span className="text-neutral-500">USDC</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-neutral-400">LT:</span>
+              <input
+                type="number"
+                step="1"
+                min="10"
+                max="95"
+                value={customLt}
+                onChange={(e) => setCustomLt(e.target.value)}
+                className="w-16 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+              />
+              <span className="text-neutral-500">%</span>
+            </div>
+
+            <button
+              type="submit"
+              disabled={updatingObligation}
+              className="px-3.5 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded transition-colors"
+            >
+              Apply Custom Obligation
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Live Stress-Test & Simulation Action Bar */}

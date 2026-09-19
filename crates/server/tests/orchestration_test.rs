@@ -152,6 +152,27 @@ async fn test_orchestration_loop_and_graphql_flow() {
         reset_res.errors
     );
 
+    // Test scenario parameter customizer mutation: switch to Solend
+    let obl_param_res = schema
+        .execute("mutation { setObligationParameters(input: { protocol: \"solend\" }) { price collateralValue debtValue liquidationPrice } }")
+        .await;
+    assert!(
+        obl_param_res.errors.is_empty(),
+        "Errors: {:?}",
+        obl_param_res.errors
+    );
+    let obl_param_data = obl_param_res.data.into_json().unwrap();
+    let debt_val: Decimal = obl_param_data["setObligationParameters"]["debtValue"].as_str().unwrap().parse().unwrap();
+    assert_eq!(debt_val, Decimal::new(14000000, 0));
+
+    // Verify obligation query now reports Solend
+    let obl_check_res = schema
+        .execute("{ obligation { source deposits { depositedAmount } borrows { borrowedAmount } } }")
+        .await;
+    let obl_check_data = obl_check_res.data.into_json().unwrap();
+    assert_eq!(obl_check_data["obligation"]["source"], "MockSave");
+    assert_eq!(obl_check_data["obligation"]["deposits"][0]["depositedAmount"], "100000");
+
     // Stop loop task
     loop_handle.abort();
 }

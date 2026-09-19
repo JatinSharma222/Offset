@@ -197,3 +197,11 @@ pub struct OnChainObligationGql {
     pub borrows: Vec<OnChainBorrowGql>,
     pub source: String,
 }
+
+#[derive(InputObject)]
+pub struct ObligationParametersInput {
+    pub protocol: Option<String>,
+    pub collateral_amount: Option<Decimal>,
+    pub debt_amount: Option<Decimal>,
+    pub liquidation_threshold: Option<Decimal>,
+}
