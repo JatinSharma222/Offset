@@ -24,6 +24,7 @@ pub struct AppState {
     pub solana_client: Arc<SolanaRpcClient>,
     pub snapshot_sender: broadcast::Sender<RiskSnapshotGql>,
     pub execution_sender: broadcast::Sender<ExecutionRecordGql>,
+    pub last_target_hedge: Arc<RwLock<Decimal>>,
 }
 
 impl AppState {
@@ -57,6 +58,7 @@ impl AppState {
             solana_client,
             snapshot_sender,
             execution_sender,
+            last_target_hedge: Arc::new(RwLock::new(Decimal::ZERO)),
         }
     }
 }

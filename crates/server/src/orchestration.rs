@@ -8,22 +8,8 @@ use chrono::Utc;
 use execution::{check_pre_trade, ExecutionRecord, ExecutionStatus};
 use risk_engine::{evaluate_position, RiskLevel};
 use rust_decimal::Decimal;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use uuid::Uuid;
-
-static LAST_TARGET_HEDGE_MICROS: AtomicU64 = AtomicU64::new(0);
-
-fn get_last_target_hedge() -> Decimal {
-    let micros = LAST_TARGET_HEDGE_MICROS.load(Ordering::Relaxed);
-    Decimal::from(micros)
-}
-
-fn set_last_target_hedge(val: Decimal) {
-    if let Ok(u) = val.to_string().parse::<f64>() {
-        LAST_TARGET_HEDGE_MICROS.store(u.round() as u64, Ordering::Relaxed);
-    }
-}
 
 /// Evaluates the current position against policy, persists snapshots, and executes hedge adjustments if thresholds are crossed.
 pub async fn evaluate_and_orchestrate(
@@ -111,7 +97,7 @@ pub async fn evaluate_and_orchestrate(
     }
 
     // 6. Check if target hedge changed beyond threshold
-    let last_target = get_last_target_hedge();
+    let last_target = *state.last_target_hedge.read().await;
     let delta = (snapshot.target_hedge - last_target).abs();
     if delta >= state.config.min_hedge_adjustment_usd {
         let safety_config = state.safety_config.read().await.clone();
@@ -136,7 +122,7 @@ pub async fn evaluate_and_orchestrate(
                 );
                 match state.executor.adjust_hedge(snapshot.target_hedge).await {
                     Ok(rec) => {
-                        set_last_target_hedge(snapshot.target_hedge);
+                        *state.last_target_hedge.write().await = snapshot.target_hedge;
                         tracing::info!(
                             "Hedge executed: filled ${} | slippage: {:?} bps | status: {:?}",
                             rec.filled_notional,
