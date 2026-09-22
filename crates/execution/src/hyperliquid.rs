@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use risk_engine::{Money, Ratio, RiskLevel};
 use rust_decimal::Decimal;
+#[cfg(feature = "live")]
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -536,7 +538,7 @@ impl Executor for HyperliquidExecutor {
             } else {
                 Decimal::ZERO
             };
-            let sz_f64 = sz_sol.to_string().parse::<f64>().unwrap_or(0.0);
+            let sz_f64 = sz_sol.to_f64().unwrap_or(0.0);
 
             // Offset holds a short hedge against collateral depreciation:
             // delta > 0 => increase short hedge => sell (is_buy = false)
@@ -547,8 +549,7 @@ impl Executor for HyperliquidExecutor {
             let cloid_str = format!("offset-{}", order_uuid.simple());
             let slippage_rate = (Decimal::from(self.config.max_slippage_bps)
                 / Decimal::new(10_000, 0))
-            .to_string()
-            .parse::<f64>()
+            .to_f64()
             .unwrap_or(0.005);
 
             tracing::info!(
