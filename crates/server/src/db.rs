@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use execution::{ExecutionRecord, ExecutionStatus};
 use risk_engine::{RiskPolicy, RiskSnapshot};
 use rust_decimal::Decimal;
-use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use sqlx::{postgres::{PgPoolOptions, PgRow}, PgPool, Row};
 use uuid::Uuid;
 
 pub async fn init_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
@@ -83,43 +83,7 @@ pub async fn get_snapshots(
     .fetch_all(pool)
     .await?;
 
-    let snapshots = rows
-        .into_iter()
-        .map(|row| {
-            let id: Uuid = row.get("id");
-            let timestamp: DateTime<Utc> = row.get("timestamp");
-            let price: Decimal = row.get("price");
-            let collateral_value: Decimal = row.get("collateral_value");
-            let risk_adjusted_collateral: Decimal = row.get("risk_adjusted_collateral");
-            let debt_value: Decimal = row.get("debt_value");
-            let health_factor: Option<Decimal> = row.get("health_factor");
-            let liquidation_price: Option<Decimal> = row.get("liquidation_price");
-            let liquidation_distance: Option<Decimal> = row.get("liquidation_distance");
-            let risk_level_str: String = row.get("risk_level");
-            let emergency: bool = row.get("emergency");
-            let exposure: Decimal = row.get("exposure");
-            let hedge_ratio: Decimal = row.get("hedge_ratio");
-            let target_hedge: Decimal = row.get("target_hedge");
-
-            RiskSnapshotGql {
-                id: id.to_string(),
-                timestamp,
-                price,
-                collateral_value,
-                risk_adjusted_collateral,
-                debt_value,
-                health_factor,
-                liquidation_price,
-                liquidation_distance,
-                risk_level: parse_risk_level(&risk_level_str),
-                emergency,
-                exposure,
-                hedge_ratio,
-                target_hedge,
-            }
-        })
-        .collect();
-
+    let snapshots = rows.iter().map(map_snapshot_row).collect();
     Ok(snapshots)
 }
 
@@ -138,39 +102,41 @@ pub async fn get_latest_snapshot(pool: &PgPool) -> Result<Option<RiskSnapshotGql
     .fetch_optional(pool)
     .await?;
 
-    Ok(row_opt.map(|row| {
-        let id: Uuid = row.get("id");
-        let timestamp: DateTime<Utc> = row.get("timestamp");
-        let price: Decimal = row.get("price");
-        let collateral_value: Decimal = row.get("collateral_value");
-        let risk_adjusted_collateral: Decimal = row.get("risk_adjusted_collateral");
-        let debt_value: Decimal = row.get("debt_value");
-        let health_factor: Option<Decimal> = row.get("health_factor");
-        let liquidation_price: Option<Decimal> = row.get("liquidation_price");
-        let liquidation_distance: Option<Decimal> = row.get("liquidation_distance");
-        let risk_level_str: String = row.get("risk_level");
-        let emergency: bool = row.get("emergency");
-        let exposure: Decimal = row.get("exposure");
-        let hedge_ratio: Decimal = row.get("hedge_ratio");
-        let target_hedge: Decimal = row.get("target_hedge");
+    Ok(row_opt.as_ref().map(map_snapshot_row))
+}
 
-        RiskSnapshotGql {
-            id: id.to_string(),
-            timestamp,
-            price,
-            collateral_value,
-            risk_adjusted_collateral,
-            debt_value,
-            health_factor,
-            liquidation_price,
-            liquidation_distance,
-            risk_level: parse_risk_level(&risk_level_str),
-            emergency,
-            exposure,
-            hedge_ratio,
-            target_hedge,
-        }
-    }))
+fn map_snapshot_row(row: &PgRow) -> RiskSnapshotGql {
+    let id: Uuid = row.get("id");
+    let timestamp: DateTime<Utc> = row.get("timestamp");
+    let price: Decimal = row.get("price");
+    let collateral_value: Decimal = row.get("collateral_value");
+    let risk_adjusted_collateral: Decimal = row.get("risk_adjusted_collateral");
+    let debt_value: Decimal = row.get("debt_value");
+    let health_factor: Option<Decimal> = row.get("health_factor");
+    let liquidation_price: Option<Decimal> = row.get("liquidation_price");
+    let liquidation_distance: Option<Decimal> = row.get("liquidation_distance");
+    let risk_level_str: String = row.get("risk_level");
+    let emergency: bool = row.get("emergency");
+    let exposure: Decimal = row.get("exposure");
+    let hedge_ratio: Decimal = row.get("hedge_ratio");
+    let target_hedge: Decimal = row.get("target_hedge");
+
+    RiskSnapshotGql {
+        id: id.to_string(),
+        timestamp,
+        price,
+        collateral_value,
+        risk_adjusted_collateral,
+        debt_value,
+        health_factor,
+        liquidation_price,
+        liquidation_distance,
+        risk_level: parse_risk_level(&risk_level_str),
+        emergency,
+        exposure,
+        hedge_ratio,
+        target_hedge,
+    }
 }
 
 pub async fn insert_execution(pool: &PgPool, rec: &ExecutionRecord) -> Result<(), sqlx::Error> {
@@ -244,64 +210,62 @@ pub async fn get_executions(
     .fetch_all(pool)
     .await?;
 
-    let records = rows
-        .into_iter()
-        .map(|row| {
-            let id: Uuid = row.get("id");
-            let timestamp: DateTime<Utc> = row.get("timestamp");
-            let risk_level_str: String = row.get("risk_level");
-            let liquidation_distance: Option<Decimal> = row.get("liquidation_distance");
-            let target_notional: Decimal = row.get("target_notional");
-            let filled_notional: Decimal = row.get("filled_notional");
-            let avg_fill_price: Option<Decimal> = row.get("avg_fill_price");
-            let reference_price: Decimal = row.get("reference_price");
-            let slippage_bps: Option<Decimal> = row.get("slippage_bps");
-            let residual_exposure: Decimal = row.get("residual_exposure");
-            let status_str: String = row.get("status");
-            let note: Option<String> = row.get("note");
-            let book_val: Option<serde_json::Value> = row.get("book_snapshot");
-
-            let book_snapshot = book_val.and_then(|val| {
-                let book: execution::BookSnapshot = serde_json::from_value(val).ok()?;
-                Some(BookSnapshotGql {
-                    bids: book
-                        .bids
-                        .into_iter()
-                        .map(|l| BookLevelGql {
-                            price: l.price,
-                            size: l.size,
-                        })
-                        .collect(),
-                    asks: book
-                        .asks
-                        .into_iter()
-                        .map(|l| BookLevelGql {
-                            price: l.price,
-                            size: l.size,
-                        })
-                        .collect(),
-                })
-            });
-
-            ExecutionRecordGql {
-                id: id.to_string(),
-                timestamp,
-                risk_level: parse_risk_level(&risk_level_str),
-                liquidation_distance,
-                target_notional,
-                filled_notional,
-                avg_fill_price,
-                reference_price,
-                slippage_bps,
-                residual_exposure,
-                status: parse_execution_status(&status_str),
-                note,
-                book_snapshot,
-            }
-        })
-        .collect();
-
+    let records = rows.iter().map(map_execution_row).collect();
     Ok(records)
+}
+
+fn map_execution_row(row: &PgRow) -> ExecutionRecordGql {
+    let id: Uuid = row.get("id");
+    let timestamp: DateTime<Utc> = row.get("timestamp");
+    let risk_level_str: String = row.get("risk_level");
+    let liquidation_distance: Option<Decimal> = row.get("liquidation_distance");
+    let target_notional: Decimal = row.get("target_notional");
+    let filled_notional: Decimal = row.get("filled_notional");
+    let avg_fill_price: Option<Decimal> = row.get("avg_fill_price");
+    let reference_price: Decimal = row.get("reference_price");
+    let slippage_bps: Option<Decimal> = row.get("slippage_bps");
+    let residual_exposure: Decimal = row.get("residual_exposure");
+    let status_str: String = row.get("status");
+    let note: Option<String> = row.get("note");
+    let book_val: Option<serde_json::Value> = row.get("book_snapshot");
+
+    let book_snapshot = book_val.and_then(|val| {
+        let book: execution::BookSnapshot = serde_json::from_value(val).ok()?;
+        Some(BookSnapshotGql {
+            bids: book
+                .bids
+                .into_iter()
+                .map(|l| BookLevelGql {
+                    price: l.price,
+                    size: l.size,
+                })
+                .collect(),
+            asks: book
+                .asks
+                .into_iter()
+                .map(|l| BookLevelGql {
+                    price: l.price,
+                    size: l.size,
+                })
+                .collect(),
+        })
+    });
+
+    ExecutionRecordGql {
+        id: id.to_string(),
+        timestamp,
+        risk_level: parse_risk_level(&risk_level_str),
+        liquidation_distance,
+        target_notional,
+        filled_notional,
+        avg_fill_price,
+        reference_price,
+        slippage_bps,
+        residual_exposure,
+        status: parse_execution_status(&status_str),
+        note,
+        book_snapshot,
+    }
 }
 
 pub async fn save_policy(pool: &PgPool, policy: &RiskPolicy) -> Result<(), sqlx::Error> {
