@@ -290,8 +290,15 @@ impl HyperliquidExecutor {
         }
     }
 
-    /// Fetches the live mid price for the configured coin from Hyperliquid.
-    pub async fn fetch_live_price(&self) -> Result<Money, ExecutionError> {
+    /// Returns the last known reference price without contacting the exchange.
+    pub async fn last_known_price(&self) -> Money {
+        *self.reference_price.read().await
+    }
+
+    /// Fetches and synchronizes the live mid price from Hyperliquid.
+    /// **Note**: This intentionally updates internal `reference_price` and `last_price_update`
+    /// to keep the executor's local state consistent with the exchange.
+    pub async fn sync_live_price(&self) -> Result<Money, ExecutionError> {
         #[cfg(feature = "live")]
         {
             if let Some(ctx) = self.init_live_context().await? {
@@ -375,6 +382,9 @@ impl HyperliquidExecutor {
 
 #[async_trait]
 impl Executor for HyperliquidExecutor {
+    /// Returns the current hedge notional, synchronizing from the exchange if live.
+    /// When the `live` feature is active, this queries the exchange and updates
+    /// `self.current_position` to reflect the actual on-exchange state.
     async fn current_hedge(&self) -> Result<Money, ExecutionError> {
         #[cfg(feature = "live")]
         {
