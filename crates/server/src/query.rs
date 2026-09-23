@@ -64,7 +64,7 @@ impl QueryRoot {
         limit: Option<i32>,
     ) -> Result<Vec<RiskSnapshotGql>> {
         let state = ctx.data::<AppState>()?;
-        let limit = limit.unwrap_or(500) as i64;
+        let limit = limit.unwrap_or(500).clamp(1, 5000) as i64;
 
         if let Some(pool) = &state.db_pool {
             match db::get_snapshots(pool, since, limit).await {
@@ -86,7 +86,7 @@ impl QueryRoot {
         limit: Option<i32>,
     ) -> Result<Vec<ExecutionRecordGql>> {
         let state = ctx.data::<AppState>()?;
-        let limit = limit.unwrap_or(100) as i64;
+        let limit = limit.unwrap_or(100).clamp(1, 1000) as i64;
 
         if let Some(pool) = &state.db_pool {
             match db::get_executions(pool, limit).await {
@@ -269,8 +269,7 @@ impl QueryRoot {
     ) -> Result<OnChainObligationGql> {
         let state = ctx.data::<AppState>()?;
         let obl = if let Some(ref pk) = pubkey {
-            let client = data::SolanaRpcClient::new(&state.config.solana_rpc_url);
-            client.fetch_obligation_with_fallback(pk).await
+            state.solana_client.fetch_obligation_with_fallback(pk).await
         } else {
             state.current_obligation.read().await.clone()
         };

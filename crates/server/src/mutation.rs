@@ -16,6 +16,21 @@ impl MutationRoot {
     ) -> Result<RiskPolicyGql> {
         let state = ctx.data::<AppState>()?;
 
+        if input.warning.minimum_distance < Decimal::ZERO
+            || input.danger.minimum_distance < Decimal::ZERO
+            || input.critical.minimum_distance < Decimal::ZERO
+            || input.warning.hedge_ratio < Decimal::ZERO
+            || input.warning.hedge_ratio > Decimal::ONE
+            || input.danger.hedge_ratio < Decimal::ZERO
+            || input.danger.hedge_ratio > Decimal::ONE
+            || input.critical.hedge_ratio < Decimal::ZERO
+            || input.critical.hedge_ratio > Decimal::ONE
+        {
+            return Err(async_graphql::Error::new(
+                "Policy values must be non-negative, and hedge ratios must be between 0.0 and 1.0",
+            ));
+        }
+
         let new_policy = RiskPolicy {
             warning: HedgeTier {
                 minimum_distance: input.warning.minimum_distance,
@@ -96,6 +111,10 @@ impl MutationRoot {
         ctx: &Context<'_>,
         price: Decimal,
     ) -> Result<RiskSnapshotGql> {
+        if price <= Decimal::ZERO {
+            return Err(async_graphql::Error::new("Simulated price must be positive"));
+        }
+
         let state = ctx.data::<AppState>()?;
         *state.price_override.write().await = Some(price);
         tracing::info!("Simulated market price set to ${}", price);
@@ -110,6 +129,12 @@ impl MutationRoot {
         ctx: &Context<'_>,
         drop_percentage: Decimal,
     ) -> Result<RiskSnapshotGql> {
+        if drop_percentage < Decimal::ZERO || drop_percentage >= Decimal::new(100, 0) {
+            return Err(async_graphql::Error::new(
+                "drop_percentage must be between 0.0% and 99.99%",
+            ));
+        }
+
         let state = ctx.data::<AppState>()?;
         let current_price = {
             let pos = state.current_position.read().await;
