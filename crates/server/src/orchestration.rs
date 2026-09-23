@@ -8,8 +8,12 @@ use chrono::Utc;
 use execution::{check_pre_trade, ExecutionRecord, ExecutionStatus};
 use risk_engine::{evaluate_position, RiskLevel};
 use rust_decimal::Decimal;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use uuid::Uuid;
+
+/// Maximum consecutive DB write failures before the kill switch auto-activates.
+const MAX_DB_FAILURES_BEFORE_HALT: u32 = 3;
 
 /// Evaluates the current position against policy, persists snapshots, and executes hedge adjustments if thresholds are crossed.
 pub async fn evaluate_and_orchestrate(
@@ -81,10 +85,27 @@ pub async fn evaluate_and_orchestrate(
     // 3. Update in-memory state
     *state.latest_snapshot.write().await = Some(snapshot_gql.clone());
 
-    // 4. Persist snapshot to Postgres
+    // 4. Persist snapshot to Postgres (with failure tracking)
     if let Some(pool) = &state.db_pool {
-        if let Err(e) = db::insert_snapshot(pool, snapshot_id, now, sol_price, &snapshot).await {
-            tracing::error!("Failed to persist risk snapshot: {:?}", e);
+        match db::insert_snapshot(pool, snapshot_id, now, sol_price, &snapshot).await {
+            Ok(_) => {
+                state.db_failure_count.store(0, Ordering::Relaxed);
+            }
+            Err(e) => {
+                let failures = state.db_failure_count.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::error!(
+                    "Failed to persist risk snapshot ({} consecutive failures): {:?}",
+                    failures,
+                    e
+                );
+                if failures >= MAX_DB_FAILURES_BEFORE_HALT {
+                    tracing::error!(
+                        "CIRCUIT BREAKER: {} consecutive DB failures. Activating kill switch to prevent unaudited trades.",
+                        failures
+                    );
+                    state.safety_config.write().await.kill_switch = true;
+                }
+            }
         }
     }
 
@@ -219,8 +240,25 @@ pub async fn evaluate_and_orchestrate(
         };
 
         if let Some(pool) = &state.db_pool {
-            if let Err(e) = db::insert_execution(pool, &execution_record).await {
-                tracing::error!("Failed to persist execution record: {:?}", e);
+            match db::insert_execution(pool, &execution_record).await {
+                Ok(_) => {
+                    state.db_failure_count.store(0, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    let failures = state.db_failure_count.fetch_add(1, Ordering::Relaxed) + 1;
+                    tracing::error!(
+                        "Failed to persist execution record ({} consecutive failures): {:?}",
+                        failures,
+                        e
+                    );
+                    if failures >= MAX_DB_FAILURES_BEFORE_HALT {
+                        tracing::error!(
+                            "CIRCUIT BREAKER: {} consecutive DB failures. Activating kill switch to prevent unaudited trades.",
+                            failures
+                        );
+                        state.safety_config.write().await.kill_switch = true;
+                    }
+                }
             }
         }
 

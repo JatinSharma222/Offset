@@ -25,6 +25,8 @@ pub struct AppState {
     pub snapshot_sender: broadcast::Sender<RiskSnapshotGql>,
     pub execution_sender: broadcast::Sender<ExecutionRecordGql>,
     pub last_target_hedge: Arc<RwLock<Decimal>>,
+    /// Consecutive DB write failures. When this exceeds a threshold, the kill switch activates.
+    pub db_failure_count: Arc<std::sync::atomic::AtomicU32>,
 }
 
 impl AppState {
@@ -59,6 +61,7 @@ impl AppState {
             snapshot_sender,
             execution_sender,
             last_target_hedge: Arc::new(RwLock::new(Decimal::ZERO)),
+            db_failure_count: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         }
     }
 }
