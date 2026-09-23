@@ -27,6 +27,8 @@ pub struct AppState {
     pub last_target_hedge: Arc<RwLock<Decimal>>,
     /// Consecutive DB write failures. When this exceeds a threshold, the kill switch activates.
     pub db_failure_count: Arc<std::sync::atomic::AtomicU32>,
+    /// Reusable multiplexed Redis connection to avoid TCP connection churn on every publish.
+    pub redis_conn: Arc<RwLock<Option<redis::aio::MultiplexedConnection>>>,
 }
 
 impl AppState {
@@ -62,6 +64,7 @@ impl AppState {
             execution_sender,
             last_target_hedge: Arc::new(RwLock::new(Decimal::ZERO)),
             db_failure_count: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            redis_conn: Arc::new(RwLock::new(None)),
         }
     }
 }

@@ -197,7 +197,7 @@ async fn handle_db_failure(state: &AppState, record_type: &str, error: sqlx::Err
 async fn publish_snapshot(state: &AppState, snapshot_gql: &RiskSnapshotGql) {
     let _ = state.snapshot_sender.send(snapshot_gql.clone());
     if let Some(client) = &state.redis_client {
-        if let Err(e) = redis::publish_snapshot(client, snapshot_gql).await {
+        if let Err(e) = redis::publish_snapshot(client, &state.redis_conn, snapshot_gql).await {
             tracing::warn!("Failed to publish snapshot to Redis: {:?}", e);
         }
     }
@@ -207,7 +207,7 @@ async fn publish_snapshot(state: &AppState, snapshot_gql: &RiskSnapshotGql) {
 async fn publish_execution(state: &AppState, rec_gql: &ExecutionRecordGql) {
     let _ = state.execution_sender.send(rec_gql.clone());
     if let Some(client) = &state.redis_client {
-        if let Err(e) = redis::publish_execution(client, rec_gql).await {
+        if let Err(e) = redis::publish_execution(client, &state.redis_conn, rec_gql).await {
             tracing::warn!("Failed to publish execution to Redis: {:?}", e);
         }
     }

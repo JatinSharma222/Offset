@@ -327,7 +327,7 @@ impl MutationRoot {
 
         let _ = state.execution_sender.send(rec_gql.clone());
         if let Some(client) = &state.redis_client {
-            let _ = crate::redis::publish_execution(client, &rec_gql).await;
+            let _ = crate::redis::publish_execution(client, &state.redis_conn, &rec_gql).await;
         }
 
         tracing::info!("Pre-trade safety refusal recorded: {}", note);
