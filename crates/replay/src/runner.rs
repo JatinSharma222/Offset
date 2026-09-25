@@ -347,7 +347,6 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
     let mut ticks = Vec::new();
     let mut total_penalties = Decimal::ZERO;
     let mut total_bad_debt = Decimal::ZERO;
-    let mut last_hedge_notional = Decimal::ZERO;
     let mut liquidation_events = 0u32;
 
     for pt in &scenario.prices {
@@ -364,12 +363,12 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
             .set_market_state(pt.price, snapshot.risk_level, snapshot.liquidation_distance)
             .await;
 
-        // 4. Adjust hedge if target changed significantly
+        // 4. Adjust hedge if target changed significantly from current mark-to-market position
         let mut execution = None;
-        let delta = (snapshot.target_hedge - last_hedge_notional).abs();
+        let current_hedge = executor.current_hedge().await.unwrap_or(Decimal::ZERO);
+        let delta = (snapshot.target_hedge - current_hedge).abs();
         if delta >= Decimal::new(100, 0) {
             if let Ok(rec) = executor.adjust_hedge(snapshot.target_hedge).await {
-                last_hedge_notional = snapshot.target_hedge;
                 execution = Some(rec);
             }
         }

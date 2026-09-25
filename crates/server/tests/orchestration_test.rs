@@ -176,3 +176,61 @@ async fn test_orchestration_loop_and_graphql_flow() {
     // Stop loop task
     loop_handle.abort();
 }
+
+#[tokio::test]
+async fn test_orchestration_price_drop_does_not_unwind_hedge() {
+    let mut config = ServerConfig::from_env();
+    config.loop_interval_secs = 1;
+    config.min_hedge_adjustment_usd = Decimal::new(100, 0);
+    config.enable_live_price_feed = false;
+    config.safety = SafetyConfig {
+        max_total_notional: Decimal::new(10_000_000, 0),
+        max_single_order: Decimal::new(1_000_000, 0),
+        max_price_staleness_secs: 30,
+        kill_switch: false,
+    };
+
+    // 100 SOL collateral @ $200, $14,000 debt -> Warning tier (distance 12.5%, 25% hedge ratio -> $5,000 target hedge = 25 SOL short)
+    let position = Position {
+        collateral: vec![AssetPosition {
+            asset: "SOL".to_string(),
+            amount: Decimal::new(100, 0),
+            price: Decimal::new(200, 0),
+            liquidation_threshold: Some(Decimal::new(80, 2)),
+        }],
+        debt: vec![AssetPosition {
+            asset: "USDC".to_string(),
+            amount: Decimal::new(14000, 0),
+            price: Decimal::ONE,
+            liquidation_threshold: None,
+        }],
+    };
+
+    let executor = Arc::new(SimulatedExecutor::new(Decimal::new(200, 0)));
+    let state = AppState::new(config, None, None, executor.clone(), position);
+
+    let mut execution_rx = state.execution_sender.subscribe();
+    let loop_handle = Offset_server::orchestration::start_orchestration_loop(state.clone());
+
+    // First execution: initial hedge adjustment to $5,000 (25 SOL)
+    let first_exec = tokio::time::timeout(Duration::from_secs(3), execution_rx.recv())
+        .await
+        .expect("Timeout waiting for first execution")
+        .expect("Failed to recv execution");
+    assert_eq!(first_exec.target_notional, Decimal::new(5000, 0));
+    assert_eq!(executor.current_units().await, Decimal::new(25, 0));
+
+    // SOL price drops to $195 (distance is 10.25%, still in Warning tier)
+    // Target hedge in dollars drops to $4,875 (delta from last target would be $125 > min $100).
+    // The short position of 25 SOL must NOT be unwound, no new trade should fire!
+    *state.price_override.write().await = Some(Decimal::new(195, 0));
+
+    // Wait 1.5 seconds and assert NO new execution record was emitted
+    let second_exec = tokio::time::timeout(Duration::from_millis(1500), execution_rx.recv()).await;
+    assert!(second_exec.is_err(), "Expected no new trade when price drops within same tier");
+
+    // Verify 25 SOL short is still fully held!
+    assert_eq!(executor.current_units().await, Decimal::new(25, 0));
+
+    loop_handle.abort();
+}

@@ -248,4 +248,9 @@ impl Executor for SimulatedExecutor {
     async fn close_hedge(&self) -> Result<ExecutionRecord, ExecutionError> {
         self.adjust_hedge(Decimal::ZERO).await
     }
+
+    async fn update_reference_price(&self, price: Money) -> Result<(), ExecutionError> {
+        *self.reference_price.write().await = price;
+        Ok(())
+    }
 }

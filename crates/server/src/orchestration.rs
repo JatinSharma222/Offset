@@ -224,8 +224,8 @@ async fn execute_hedge_if_needed(
     snapshot: &RiskSnapshot,
     sol_price: Decimal,
 ) -> Option<ExecutionRecord> {
-    let last_target = *state.last_target_hedge.read().await;
-    let delta = (snapshot.target_hedge - last_target).abs();
+    let current_hedge = state.executor.current_hedge().await.unwrap_or(Decimal::ZERO);
+    let delta = (snapshot.target_hedge - current_hedge).abs();
 
     if delta < state.config.min_hedge_adjustment_usd {
         return None;
@@ -247,8 +247,9 @@ async fn execute_hedge_if_needed(
     let record = match pre_trade_result {
         Ok(()) => {
             tracing::info!(
-                "Triggering hedge adjustment: target ${} (delta ${})",
+                "Triggering hedge adjustment: target ${} (current ${}, delta ${})",
                 snapshot.target_hedge,
+                current_hedge,
                 delta
             );
             match state.executor.adjust_hedge(snapshot.target_hedge).await {
@@ -318,6 +319,7 @@ pub async fn evaluate_and_orchestrate(
 ) -> RiskSnapshotGql {
     // 1. Resolve price and gather current state
     let (sol_price, position) = resolve_price(state, forced_price).await;
+    let _ = state.executor.update_reference_price(sol_price).await;
     let policy = state.policy.read().await.clone();
 
     // 2. Pure risk engine evaluation

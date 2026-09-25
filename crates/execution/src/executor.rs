@@ -21,4 +21,7 @@ pub trait Executor: Send + Sync {
     async fn adjust_hedge(&self, target_notional: Money)
         -> Result<ExecutionRecord, ExecutionError>;
     async fn close_hedge(&self) -> Result<ExecutionRecord, ExecutionError>;
+    async fn update_reference_price(&self, _price: Money) -> Result<(), ExecutionError> {
+        Ok(())
+    }
 }
