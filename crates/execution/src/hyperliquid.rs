@@ -121,6 +121,7 @@ pub struct HyperliquidExecutor {
     pub config: HyperliquidConfig,
     pub safety_config: Arc<RwLock<SafetyConfig>>,
     current_position: Arc<RwLock<Money>>,
+    current_units: Arc<RwLock<Decimal>>,
     last_target: Arc<RwLock<Option<Money>>>,
     reference_price: Arc<RwLock<Money>>,
     risk_level: Arc<RwLock<RiskLevel>>,
@@ -136,6 +137,7 @@ impl HyperliquidExecutor {
             config,
             safety_config: Arc::new(RwLock::new(SafetyConfig::default())),
             current_position: Arc::new(RwLock::new(Decimal::ZERO)),
+            current_units: Arc::new(RwLock::new(Decimal::ZERO)),
             last_target: Arc::new(RwLock::new(None)),
             reference_price: Arc::new(RwLock::new(Decimal::new(150, 0))),
             risk_level: Arc::new(RwLock::new(RiskLevel::Healthy)),
@@ -144,6 +146,11 @@ impl HyperliquidExecutor {
             #[cfg(feature = "live")]
             live_context: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Returns the currently held hedge position in base asset units (e.g. SOL).
+    pub async fn current_units(&self) -> Decimal {
+        *self.current_units.read().await
     }
 
     pub fn with_safety(config: HyperliquidConfig, safety: SafetyConfig) -> Self {
@@ -397,16 +404,22 @@ impl Executor for HyperliquidExecutor {
                     {
                         let is_short = pos.position.szi.starts_with('-');
                         if is_short {
+                            let sz = Decimal::from_str(&pos.position.szi)
+                                .map(|s| s.abs())
+                                .unwrap_or(Decimal::ZERO);
+                            *self.current_units.write().await = sz;
                             if let Ok(val) = Decimal::from_str(&pos.position.position_value) {
                                 let val = val.abs();
                                 *self.current_position.write().await = val;
                                 return Ok(val);
                             }
                         } else {
+                            *self.current_units.write().await = Decimal::ZERO;
                             *self.current_position.write().await = Decimal::ZERO;
                             return Ok(Decimal::ZERO);
                         }
                     } else {
+                        *self.current_units.write().await = Decimal::ZERO;
                         *self.current_position.write().await = Decimal::ZERO;
                         return Ok(Decimal::ZERO);
                     }
@@ -414,8 +427,11 @@ impl Executor for HyperliquidExecutor {
             }
         }
 
-        let pos = *self.current_position.read().await;
-        Ok(pos)
+        let units = *self.current_units.read().await;
+        let ref_px = *self.reference_price.read().await;
+        let notional = units * ref_px;
+        *self.current_position.write().await = notional;
+        Ok(notional)
     }
 
     async fn adjust_hedge(
@@ -424,34 +440,42 @@ impl Executor for HyperliquidExecutor {
     ) -> Result<ExecutionRecord, ExecutionError> {
         let mut last_target = self.last_target.write().await;
         let mut current_pos = self.current_position.write().await;
+        let mut current_units_guard = self.current_units.write().await;
         let ref_price = *self.reference_price.read().await;
         let r_level = *self.risk_level.read().await;
         let dist = *self.liquidation_dist.read().await;
 
-        // Idempotency: identical target produces an immediate, zero-slippage no-op
-        if let Some(prev) = *last_target {
-            if prev == target_notional {
-                return Ok(ExecutionRecord {
-                    id: Uuid::new_v4(),
-                    timestamp: Utc::now(),
-                    risk_level: r_level,
-                    liquidation_distance: dist,
-                    target_notional,
-                    filled_notional: target_notional,
-                    avg_fill_price: Some(ref_price),
-                    reference_price: ref_price,
-                    slippage_bps: Some(Decimal::ZERO),
-                    residual_exposure: Decimal::ZERO,
-                    status: ExecutionStatus::Filled,
-                    book_snapshot: None,
-                    cloid: None,
-                    note: Some("adjust_hedge no-op: target unchanged".to_string()),
-                });
-            }
+        let target_units = if !ref_price.is_zero() {
+            target_notional / ref_price
+        } else {
+            Decimal::ZERO
+        };
+
+        let delta_units = target_units - *current_units_guard;
+
+        // Idempotency: identical target units (or change < 0.0001) produces an immediate no-op
+        if delta_units.is_zero() || delta_units.abs() < Decimal::new(1, 4) {
+            *last_target = Some(target_notional);
+            return Ok(ExecutionRecord {
+                id: Uuid::new_v4(),
+                timestamp: Utc::now(),
+                risk_level: r_level,
+                liquidation_distance: dist,
+                target_notional,
+                filled_notional: target_notional,
+                avg_fill_price: Some(ref_price),
+                reference_price: ref_price,
+                slippage_bps: Some(Decimal::ZERO),
+                residual_exposure: Decimal::ZERO,
+                status: ExecutionStatus::Filled,
+                book_snapshot: None,
+                cloid: None,
+                note: Some("adjust_hedge no-op: target unchanged".to_string()),
+            });
         }
 
-        let delta = target_notional - *current_pos;
-        let order_size = delta.abs();
+        let order_size_units = delta_units.abs();
+        let order_size_usd = order_size_units * ref_price;
 
         // Safety verification: check pre-trade constraints
         let safety = self.safety_config.read().await.clone();
@@ -464,7 +488,7 @@ impl Executor for HyperliquidExecutor {
 
         if let Err(violation) = check_pre_trade(
             target_notional,
-            order_size,
+            order_size_usd,
             price_age,
             margin_available,
             margin_required,
@@ -481,7 +505,7 @@ impl Executor for HyperliquidExecutor {
                 avg_fill_price: None,
                 reference_price: ref_price,
                 slippage_bps: None,
-                residual_exposure: delta,
+                residual_exposure: order_size_usd,
                 status: ExecutionStatus::Refused(violation.clone()),
                 book_snapshot: None,
                 cloid: None,
@@ -543,17 +567,13 @@ impl Executor for HyperliquidExecutor {
                 Err(_) => Some(self.simulated_book(execution_ref_px)),
             };
 
-            let sz_sol = if !execution_ref_px.is_zero() {
-                order_size / execution_ref_px
-            } else {
-                Decimal::ZERO
-            };
+            let sz_sol = order_size_units;
             let sz_f64 = sz_sol.to_f64().unwrap_or(0.0);
 
             // Offset holds a short hedge against collateral depreciation:
-            // delta > 0 => increase short hedge => sell (is_buy = false)
-            // delta < 0 => reduce/close short hedge => buy back (is_buy = true)
-            let is_buy = delta < Decimal::ZERO;
+            // delta_units > 0 => increase short hedge => sell (is_buy = false)
+            // delta_units < 0 => reduce/close short hedge => buy back (is_buy = true)
+            let is_buy = delta_units < Decimal::ZERO;
 
             let order_uuid = Uuid::new_v4();
             let cloid_str = format!("offset-{}", order_uuid.simple());
@@ -567,7 +587,7 @@ impl Executor for HyperliquidExecutor {
                 if is_buy { "BUY" } else { "SELL" },
                 sz_f64,
                 self.config.coin,
-                order_size
+                order_size_usd
             );
 
             let order_params = MarketOrderParams {
@@ -643,6 +663,7 @@ impl Executor for HyperliquidExecutor {
                     if exec_status == ExecutionStatus::Filled
                         || exec_status == ExecutionStatus::PartiallyFilled
                     {
+                        *current_units_guard = target_units;
                         *current_pos = target_notional;
                         *last_target = Some(target_notional);
                     }
@@ -676,7 +697,7 @@ impl Executor for HyperliquidExecutor {
                         avg_fill_price: None,
                         reference_price: execution_ref_px,
                         slippage_bps: None,
-                        residual_exposure: delta,
+                        residual_exposure: order_size_usd,
                         status: ExecutionStatus::Failed(err_msg.clone()),
                         book_snapshot: live_book,
                         cloid: Some(cloid_str),
@@ -694,6 +715,7 @@ impl Executor for HyperliquidExecutor {
 
         // Fallback simulated execution path (offline tests or unconfigured credentials)
         let book = self.simulated_book(ref_price);
+        *current_units_guard = target_units;
         *current_pos = target_notional;
         *last_target = Some(target_notional);
         let cloid_str = format!("sim-hl-{}", Uuid::new_v4().simple());
@@ -713,8 +735,8 @@ impl Executor for HyperliquidExecutor {
             book_snapshot: Some(book),
             cloid: Some(cloid_str),
             note: Some(format!(
-                "Hyperliquid order adjusted: delta ${} -> target ${}",
-                delta, target_notional
+                "Hyperliquid order adjusted: delta_units {} -> target_units {}",
+                delta_units, target_units
             )),
         })
     }

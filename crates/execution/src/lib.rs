@@ -185,4 +185,36 @@ mod tests {
         assert!(ch3.realized_pnl > Decimal::new(900, 0));
         assert_eq!(ch3.total_pnl, ch3.realized_pnl);
     }
+
+    #[tokio::test]
+    async fn test_hedge_preservation_and_cost_basis_when_price_drops() {
+        use risk_engine::RiskLevel;
+
+        // Start at $200 SOL price
+        let sim = SimulatedExecutor::new(Decimal::new(200, 0));
+        sim.set_market_state(Decimal::new(200, 0), RiskLevel::Danger, None).await;
+
+        // Open $10,000 hedge at $200 -> exactly 50 units (SOL) short
+        let rec1 = sim.adjust_hedge(Decimal::new(10000, 0)).await.unwrap();
+        assert_eq!(rec1.filled_notional, Decimal::new(10000, 0));
+        assert_eq!(sim.current_units().await, Decimal::new(50, 0));
+
+        // SOL price drops to $100 (-50%)
+        sim.set_market_state(Decimal::new(100, 0), RiskLevel::Danger, None).await;
+
+        // At $100 price, 50 units short is worth $5,000 mark-to-market.
+        // Risk engine outputs $5,000 target hedge for the same 50% ratio on collateral.
+        let rec2 = sim.adjust_hedge(Decimal::new(5000, 0)).await.unwrap();
+        // Crucial: Must be an idempotent no-op! The 50 SOL short must NOT be unwound!
+        assert!(rec2.note.as_ref().unwrap().contains("no-op"));
+        assert_eq!(sim.current_units().await, Decimal::new(50, 0));
+
+        // Clearinghouse accounting check:
+        let ch = sim.clearinghouse_state().await;
+        // Mark-to-market position value is $5,000
+        assert_eq!(ch.position_notional, Decimal::new(5000, 0));
+        // Unrealized P&L: 50 SOL shorted at ~$199.90, current price $100 -> ~$4,995 profit!
+        assert!(ch.unrealized_pnl > Decimal::new(4900, 0));
+        assert_eq!(ch.realized_pnl, Decimal::ZERO);
+    }
 }
