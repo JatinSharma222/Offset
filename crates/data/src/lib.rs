@@ -80,8 +80,8 @@ mod tests {
     #[test]
     fn test_obligation_binary_bytes_parsing() {
         let client = SolanaRpcClient::new("http://localhost:8899");
-        // Construct simulated 120-byte obligation account payload
-        let mut bytes = vec![0u8; 128];
+        // Construct simulated 170-byte obligation account payload
+        let mut bytes = vec![0u8; 170];
         // Discriminator (8 bytes)
         bytes[0..8].copy_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
         // Lending market (32 bytes)
@@ -92,12 +92,19 @@ mod tests {
         bytes[72] = 1;
         // Deposit reserve (32 bytes)
         bytes[73..105].copy_from_slice(&[0xcc; 32]);
-        // Deposited amount = 25,000 (u64 LE)
-        let amount = 25000u64.to_le_bytes();
+        // Deposited amount = 25,000 SOL (in lamports: 25,000 * 10^9)
+        let amount = (25000u64 * 1_000_000_000u64).to_le_bytes();
         bytes[105..113].copy_from_slice(&amount);
         // Liquidation threshold = 8000 bps (0.80)
         let lt_bps = 8000u64.to_le_bytes();
         bytes[113..121].copy_from_slice(&lt_bps);
+        // Borrow count = 1
+        bytes[121] = 1;
+        // Borrow reserve (32 bytes)
+        bytes[122..154].copy_from_slice(&[0xdd; 32]);
+        // Borrowed amount = 500,000 USDC (in micro-units: 500,000 * 10^6)
+        let borrow_amount = (500000u64 * 1_000_000u64).to_le_bytes();
+        bytes[154..162].copy_from_slice(&borrow_amount);
 
         let parsed = client
             .parse_obligation_bytes("ObligationPubkey123", &bytes)
@@ -109,6 +116,8 @@ mod tests {
             parsed.deposits[0].liquidation_threshold,
             Decimal::new(80, 2)
         );
+        assert_eq!(parsed.borrows.len(), 1);
+        assert_eq!(parsed.borrows[0].borrowed_amount, Decimal::from(500000));
     }
 
     #[tokio::test]

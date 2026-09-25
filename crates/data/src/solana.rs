@@ -254,7 +254,9 @@ impl SolanaRpcClient {
             offset += 8;
 
             let asset = if i == 0 { "SOL" } else { "mSOL" };
-            let amount = Decimal::from(raw_amount);
+            // On-chain SOL/mSOL is stored in lamports (10^9 base units)
+            let decimals = Decimal::from(1_000_000_000u64);
+            let amount = Decimal::from(raw_amount) / decimals;
             let lt = Decimal::from(lt_bps) / Decimal::from(10000);
 
             deposits.push(OnChainDeposit {
@@ -283,10 +285,14 @@ impl SolanaRpcClient {
                 let raw_amount = u64::from_le_bytes(amount_bytes);
                 offset += 8;
 
+                // On-chain USDC is stored in micro-units (10^6 base units)
+                let decimals = Decimal::from(1_000_000u64);
+                let amount = Decimal::from(raw_amount) / decimals;
+
                 borrows.push(OnChainBorrow {
                     reserve_pubkey: res_pubkey,
                     asset: "USDC".to_string(),
-                    borrowed_amount: Decimal::from(raw_amount),
+                    borrowed_amount: amount,
                 });
             }
         }
