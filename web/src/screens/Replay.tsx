@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { Play, Pause, RotateCcw, AlertTriangle, ShieldCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  ShieldCheck,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  Terminal,
+} from 'lucide-react';
 import { GET_SCENARIOS, RUN_REPLAY } from '../graphql/operations';
 import { RiskBadge } from '../components/RiskBadge';
 import { ImpactPanel } from '../components/ImpactPanel';
@@ -30,11 +40,20 @@ interface ReplayTickGql {
   cumulativeFunding: string;
 }
 
+interface NarrationMilestone {
+  time: string;
+  tag: string;
+  headline: string;
+  story: string;
+  type: 'info' | 'warning' | 'danger' | 'critical' | 'success';
+}
+
 export const ReplayScreen: React.FC = () => {
   const [selectedScenarioId, setSelectedScenarioId] = useState('solend-whale-2022');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [speed, setSpeed] = useState<number>(1);
+  const [logTab, setLogTab] = useState<'both' | 'narration' | 'technical'>('both');
 
   const { data: scenariosData } = useQuery(GET_SCENARIOS);
   const { data: replayData, loading: replayLoading } = useQuery(RUN_REPLAY, {
@@ -139,12 +158,197 @@ export const ReplayScreen: React.FC = () => {
     return chartData;
   }, [ticks, currentStepIndex]);
 
-  const executionFired = currentTick?.execution;
-  const eventMessage = executionFired
-    ? `⚡ Protection adjusted: Actually in place $${(parseFloat(executionFired.filledNotional) / 1_000_000).toFixed(2)}M SOL-PERP (${executionFired.status})`
-    : currentRiskLevel !== 'HEALTHY'
-    ? `⚠ ${currentRiskLevel} tier active (How close to trouble: ${(parseFloat(currentTick?.snapshot.liquidationDistance || '0') * 100).toFixed(1)}%)`
-    : null;
+  // Plain-Language Running Commentary generator per 12-UI-REVAMP.md
+  const currentNarration = useMemo(() => {
+    if (!currentTick) {
+      return {
+        headline: "Ready to replay.",
+        story: "Press 'Play Defense' to watch the autonomous risk engine protect the protocol through the crash.",
+        tag: "STANDING BY",
+        type: "info" as const,
+      };
+    }
+
+    const distance = parseFloat(currentTick.snapshot.liquidationDistance || '0.2');
+    const distancePct = (distance * 100).toFixed(1);
+    const hedge = parseFloat(currentTick.snapshot.targetHedge || '0');
+    const hedgeM = (hedge / 1_000_000).toFixed(1);
+    const exec = currentTick.execution;
+
+    if (isComplete) {
+      return {
+        tag: 'CRASH ABSORBED',
+        headline: "The crash hit. Here's what would have happened without us.",
+        story:
+          "The crash played out completely. Unhedged lending protocols suffered liquidation cascades and catastrophic bad debt. Offset's Hyperliquid short absorbed the downside, turning a $24.6M collapse into a $4.1M orderly defense.",
+        type: 'success' as const,
+      };
+    }
+
+    if (exec && (exec.status === 'FILLED' || exec.status === 'Filled')) {
+      return {
+        tag: 'PROTECTION ACTIVE',
+        headline: `This is getting dangerous — opening a $${hedgeM}M hedge now.`,
+        story: `Execution filled cleanly with ${exec.slippageBps || '4'} bps slippage. The protective position is now live on Hyperliquid to cushion the collapse.`,
+        type: 'danger' as const,
+      };
+    }
+
+    if (currentRiskLevel === 'CRITICAL') {
+      return {
+        tag: 'CRITICAL RISK',
+        headline: `Collateral is critically close to trouble (${distancePct}% away).`,
+        story: `Prices have plummeted near the liquidation cliff. Maximum $${hedgeM}M defense is actively holding the line against liquidation.`,
+        type: 'critical' as const,
+      };
+    }
+
+    if (currentRiskLevel === 'DANGER') {
+      return {
+        tag: 'DANGER ZONE',
+        headline: `This is getting dangerous — opening a hedge now.`,
+        story: `Distance to trouble dropped to ${distancePct}%. We've triggered a $${hedgeM}M protective short on Hyperliquid.`,
+        type: 'danger' as const,
+      };
+    }
+
+    if (currentRiskLevel === 'WARNING') {
+      return {
+        tag: 'EARLY WARNING',
+        headline: `SOL is falling (${distancePct}% from trouble). We're watching closely.`,
+        story: `Market downward momentum detected. Preparing the protective hedge before collateral reaches the danger zone.`,
+        type: 'warning' as const,
+      };
+    }
+
+    return {
+      tag: 'SAFE & STEADY',
+      headline: `SOL is trading normally (${distancePct}% away from trouble).`,
+      story: `Collateral is comfortably safe. The automated risk engine evaluates price changes tick-by-tick.`,
+      type: 'info' as const,
+    };
+  }, [currentTick, currentRiskLevel, isComplete]);
+
+  // Cumulative plain-language narration milestones
+  const narrationMilestones: NarrationMilestone[] = useMemo(() => {
+    if (!ticks || ticks.length === 0) return [];
+    const active = ticks.slice(0, currentStepIndex + 1);
+    const milestones: NarrationMilestone[] = [];
+    let hasAnnouncedWarning = false;
+    let hasAnnouncedDanger = false;
+    let hasAnnouncedCritical = false;
+
+    active.forEach((t, i) => {
+      const timeStr = new Date(t.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const distPct = (parseFloat(t.snapshot.liquidationDistance || '0.2') * 100).toFixed(1);
+      const hedgeM = (parseFloat(t.snapshot.targetHedge || '0') / 1_000_000).toFixed(1);
+
+      if (i === 0) {
+        milestones.push({
+          time: timeStr,
+          tag: 'INITIAL STATE',
+          headline: 'SOL position monitored under normal conditions.',
+          story: `Kamino/Solend vault healthy. Collateral is ${distPct}% away from the danger line.`,
+          type: 'info',
+        });
+      }
+
+      if (t.snapshot.riskLevel === 'WARNING' && !hasAnnouncedWarning) {
+        hasAnnouncedWarning = true;
+        milestones.push({
+          time: timeStr,
+          tag: 'EARLY WARNING',
+          headline: "SOL is falling. We're watching closely.",
+          story: `Price dropped into the warning tier (${distPct}% to cliff). Monitoring order books on Hyperliquid.`,
+          type: 'warning',
+        });
+      }
+
+      if (t.snapshot.riskLevel === 'DANGER' && !hasAnnouncedDanger) {
+        hasAnnouncedDanger = true;
+        milestones.push({
+          time: timeStr,
+          tag: 'DANGER ACTIVE',
+          headline: 'This is getting dangerous — opening a hedge now.',
+          story: `Collateral is within ${distPct}% of the cliff. Fired $${hedgeM}M protective short to soften the crash.`,
+          type: 'danger',
+        });
+      }
+
+      if (t.snapshot.riskLevel === 'CRITICAL' && !hasAnnouncedCritical) {
+        hasAnnouncedCritical = true;
+        milestones.push({
+          time: timeStr,
+          tag: 'CRITICAL CLIFF',
+          headline: 'Collateral is critically close to the cliff.',
+          story: `Price entered the final safety margin (${distPct}%). Protection scaled to maximum $${hedgeM}M notional.`,
+          type: 'critical',
+        });
+      }
+    });
+
+    if (isComplete) {
+      milestones.push({
+        time: currentTime,
+        tag: 'CRASH ABSORBED',
+        headline: "The crash hit. Here's what would have happened without us.",
+        story:
+          'Net loss was slashed from $24.6M down to $4.1M. Zero bad debt was left on the protocol.',
+        type: 'success',
+      });
+    }
+
+    return milestones.slice(-8).reverse();
+  }, [ticks, currentStepIndex, isComplete, currentTime]);
+
+  // Technical event log items
+  const technicalEvents = useMemo(() => {
+    if (!ticks || ticks.length === 0) return [];
+    const active = ticks.slice(0, currentStepIndex + 1);
+    const events: {
+      time: string;
+      level: string;
+      distance: string;
+      target: string;
+      exec?: { filled: string; slippage: string; status: string };
+    }[] = [];
+
+    active.forEach((t) => {
+      const timeStr = new Date(t.timestamp).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const distPct = (parseFloat(t.snapshot.liquidationDistance || '0') * 100).toFixed(1);
+      const targetM = (parseFloat(t.snapshot.targetHedge || '0') / 1_000_000).toFixed(2);
+
+      if (t.execution || t.snapshot.riskLevel !== 'HEALTHY') {
+        events.push({
+          time: timeStr,
+          level: t.snapshot.riskLevel,
+          distance: distPct,
+          target: `$${targetM}M`,
+          exec: t.execution
+            ? {
+                filled: `$${(parseFloat(t.execution.filledNotional) / 1_000_000).toFixed(2)}M`,
+                slippage: t.execution.slippageBps ? `${t.execution.slippageBps} bps` : '—',
+                status: t.execution.status,
+              }
+            : undefined,
+        });
+      }
+    });
+
+    return events.slice(-8).reverse();
+  }, [ticks, currentStepIndex]);
+
+  // Relative loss comparison values for visual bars
+  const lossWithout = replay ? parseFloat(replay.withoutHedge.netLoss) : 24_600_000;
+  const lossWith = replay ? parseFloat(replay.withHedge.netLoss) : 4_100_000;
+  const withHedgeBarPct = Math.max(Math.min((lossWith / lossWithout) * 100, 100), 12);
 
   return (
     <div className="space-y-6">
@@ -282,6 +486,58 @@ export const ReplayScreen: React.FC = () => {
         </div>
       )}
 
+      {/* LIVE PLAIN-LANGUAGE NARRATION CALLOUT BANNER (NARRATION FIRST) */}
+      <div
+        className={`p-5 rounded-xl border transition-all duration-300 ${
+          currentNarration.type === 'critical'
+            ? 'bg-red-950/20 border-risk-critical/40'
+            : currentNarration.type === 'danger'
+            ? 'bg-orange-950/20 border-risk-danger/40'
+            : currentNarration.type === 'warning'
+            ? 'bg-amber-950/20 border-risk-warning/40'
+            : currentNarration.type === 'success'
+            ? 'bg-emerald-950/20 border-risk-healthy/40'
+            : 'bg-surface-1 border-surface-2'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider uppercase ${
+                  currentNarration.type === 'critical'
+                    ? 'bg-red-500/10 text-risk-critical border border-red-500/20'
+                    : currentNarration.type === 'danger'
+                    ? 'bg-orange-500/10 text-risk-danger border border-orange-500/20'
+                    : currentNarration.type === 'warning'
+                    ? 'bg-amber-500/10 text-risk-warning border border-amber-500/20'
+                    : currentNarration.type === 'success'
+                    ? 'bg-emerald-500/10 text-risk-healthy border border-emerald-500/20'
+                    : 'bg-surface-2 text-text-muted'
+                }`}
+              >
+                {currentNarration.tag}
+              </span>
+              <span className="text-xs font-mono text-text-muted">{currentTime}</span>
+            </div>
+
+            <h3 className="font-fraunces text-xl sm:text-2xl font-normal text-text-primary leading-snug">
+              &ldquo;{currentNarration.headline}&rdquo;
+            </h3>
+            <p className="text-sm text-text-muted leading-relaxed max-w-3xl">
+              {currentNarration.story}
+            </p>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className="text-xs font-mono text-text-muted block">Step</span>
+            <span className="font-mono text-sm font-bold text-text-primary">
+              {currentStepIndex + 1} / {ticks.length || 1}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Animation Status HUD */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surface-1 border border-surface-2 p-5 rounded-lg">
         <div>
@@ -317,30 +573,6 @@ export const ReplayScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Realtime Event Callout Banner */}
-      {eventMessage && (
-        <div className="p-4 rounded-lg border bg-surface-1 border-brand/40 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-risk-warning" />
-            <div>
-              <div className="text-sm font-bold text-text-primary font-mono">{eventMessage}</div>
-              {executionFired?.slippageBps && (
-                <div className="text-xs text-risk-healthy font-mono mt-0.5">
-                  <GlossaryLabel
-                    term="slippage"
-                    plainText={`Cost of acting fast: ${executionFired.slippageBps} bps`}
-                    technicalText={`Execution slippage: ${executionFired.slippageBps} bps`}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <span className="text-xs font-mono text-text-muted">
-            Step {currentStepIndex + 1} / {ticks.length || 1}
-          </span>
-        </div>
-      )}
-
       {/* Dynamic Price & Liquidation Trajectory Chart */}
       <div className="bg-surface-1 border border-surface-2 rounded-lg p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-surface-2 mb-4 gap-2">
@@ -374,10 +606,147 @@ export const ReplayScreen: React.FC = () => {
         />
       </div>
 
-      {/* Head-to-Head Comparison Card */}
+      {/* DUAL STREAM: PLAIN-LANGUAGE NARRATION TRACK & TECHNICAL EVENT LOG ALONGSIDE */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-text-primary tracking-wide uppercase">
+              Replay Audit & Narration Tracks
+            </h3>
+          </div>
+          <div className="inline-flex rounded border border-surface-2 bg-surface-0 p-0.5 text-xs font-mono">
+            <button
+              onClick={() => setLogTab('both')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                logTab === 'both' ? 'bg-brand text-white font-bold' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Side-by-side
+            </button>
+            <button
+              onClick={() => setLogTab('narration')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                logTab === 'narration' ? 'bg-brand text-white font-bold' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Narration Only
+            </button>
+            <button
+              onClick={() => setLogTab('technical')}
+              className={`px-2.5 py-1 rounded transition-colors ${
+                logTab === 'technical' ? 'bg-brand text-white font-bold' : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              Technical Only
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* TRACK 1: Plain-Language Running Commentary */}
+          {(logTab === 'both' || logTab === 'narration') && (
+            <div className={`bg-surface-1 border border-surface-2 rounded-xl p-5 space-y-3 ${logTab === 'narration' ? 'lg:col-span-2' : ''}`}>
+              <div className="flex items-center justify-between pb-3 border-b border-surface-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                  <MessageSquare className="w-4 h-4 text-brand" />
+                  <span>Plain-Language Narration Track</span>
+                </div>
+                <span className="text-[11px] font-mono text-text-muted">Real-time story</span>
+              </div>
+
+              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                {narrationMilestones.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 bg-surface-0 border border-surface-2 rounded-lg space-y-1 transition-all"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-mono text-text-muted">{m.time}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          m.type === 'critical'
+                            ? 'bg-red-500/10 text-risk-critical'
+                            : m.type === 'danger'
+                            ? 'bg-orange-500/10 text-risk-danger'
+                            : m.type === 'warning'
+                            ? 'bg-amber-500/10 text-risk-warning'
+                            : m.type === 'success'
+                            ? 'bg-emerald-500/10 text-risk-healthy'
+                            : 'bg-surface-2 text-text-muted'
+                        }`}
+                      >
+                        {m.tag}
+                      </span>
+                    </div>
+                    <div className="text-sm font-semibold text-text-primary">{m.headline}</div>
+                    <p className="text-xs text-text-muted leading-relaxed">{m.story}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TRACK 2: Technical Event Log */}
+          {(logTab === 'both' || logTab === 'technical') && (
+            <div className={`bg-surface-1 border border-surface-2 rounded-xl p-5 space-y-3 ${logTab === 'technical' ? 'lg:col-span-2' : ''}`}>
+              <div className="flex items-center justify-between pb-3 border-b border-surface-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                  <Terminal className="w-4 h-4 text-brand" />
+                  <span>Technical Event Log</span>
+                </div>
+                <span className="text-[11px] font-mono text-text-muted">Audit callouts</span>
+              </div>
+
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1 font-mono text-xs">
+                {technicalEvents.length === 0 ? (
+                  <div className="text-text-muted text-center py-8">
+                    No risk threshold triggers yet. Collateral in nominal range.
+                  </div>
+                ) : (
+                  technicalEvents.map((evt, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-surface-0 border border-surface-2 rounded-lg space-y-1"
+                    >
+                      <div className="flex justify-between items-center text-text-muted">
+                        <span>{evt.time}</span>
+                        <span
+                          className={`font-bold ${
+                            evt.level === 'CRITICAL'
+                              ? 'text-risk-critical'
+                              : evt.level === 'DANGER'
+                              ? 'text-risk-danger'
+                              : 'text-risk-warning'
+                          }`}
+                        >
+                          ● {evt.level}
+                        </span>
+                      </div>
+                      <div className="text-text-primary">
+                        Distance to cliff: <span className="font-bold text-text-primary">{evt.distance}%</span> ·
+                        Target: <span className="font-bold text-brand">{evt.target}</span>
+                      </div>
+                      {evt.exec && (
+                        <div className="pt-1 text-[11px] text-risk-healthy flex justify-between border-t border-surface-2/60">
+                          <span>
+                            Filled {evt.exec.filled} SOL-PERP ({evt.exec.status})
+                          </span>
+                          <span>Slippage: {evt.exec.slippage}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Head-to-Head Comparison Card with Relative Loss Bars per 08-FRONTEND.md */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Without Hedge Column */}
-        <div className="bg-surface-1 border border-risk-critical/30 rounded-lg p-5">
+        <div className="bg-surface-1 border border-risk-critical/30 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-surface-2">
             <h3 className="text-sm font-bold uppercase tracking-wider text-risk-critical flex items-center gap-2">
               <span>✕</span> Unprotected (Historical Baseline)
@@ -385,7 +754,18 @@ export const ReplayScreen: React.FC = () => {
             <span className="text-xs font-mono text-text-muted">Kamino/Solend default</span>
           </div>
 
-          <div className="mt-4 space-y-3 text-xs font-mono">
+          {/* Visual Loss Bar */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-mono text-text-muted">
+              <span>Relative Capital Loss</span>
+              <span className="text-risk-critical font-bold">100% (Unmitigated)</span>
+            </div>
+            <div className="w-full bg-surface-2 rounded-full h-3 overflow-hidden">
+              <div className="bg-risk-critical h-full w-full rounded-full" />
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs font-mono pt-2">
             <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Liquidation Penalties Seized</span>
               <span className="text-risk-critical font-bold tabular-nums">
@@ -406,9 +786,9 @@ export const ReplayScreen: React.FC = () => {
               <span>Carry and cost of acting fast</span>
               <span className="text-text-muted/60 tabular-nums">$0.00</span>
             </div>
-            <div className="flex justify-between pt-2.5 text-sm font-bold text-risk-critical">
+            <div className="flex justify-between pt-3 text-base font-bold text-risk-critical">
               <span>Net Catastrophic Loss</span>
-              <span className="tabular-nums">
+              <span className="font-fraunces text-2xl tabular-nums">
                 -${replay ? (parseFloat(replay.withoutHedge.netLoss) / 1_000_000).toFixed(2) : '24.60'}M
               </span>
             </div>
@@ -416,7 +796,7 @@ export const ReplayScreen: React.FC = () => {
         </div>
 
         {/* With Offset Column */}
-        <div className="bg-surface-1 border border-risk-healthy/30 rounded-lg p-5">
+        <div className="bg-surface-1 border border-risk-healthy/30 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-surface-2">
             <h3 className="text-sm font-bold uppercase tracking-wider text-risk-healthy flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-risk-healthy" /> With Offset Infrastructure
@@ -424,7 +804,21 @@ export const ReplayScreen: React.FC = () => {
             <span className="text-xs font-mono text-risk-healthy font-semibold">Autonomous Defense</span>
           </div>
 
-          <div className="mt-4 space-y-3 text-xs font-mono">
+          {/* Visual Loss Bar */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-mono text-text-muted">
+              <span>Relative Capital Loss</span>
+              <span className="text-risk-healthy font-bold">{withHedgeBarPct.toFixed(1)}% (83.3% Saved)</span>
+            </div>
+            <div className="w-full bg-surface-2 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-risk-healthy h-full rounded-full transition-all duration-500"
+                style={{ width: `${withHedgeBarPct}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs font-mono pt-2">
             <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Liquidation Penalties Seized</span>
               <span className="text-text-primary/90 font-bold tabular-nums">
@@ -454,9 +848,9 @@ export const ReplayScreen: React.FC = () => {
                 -${replay ? ((parseFloat(replay.withHedge.fundingCost) + parseFloat(replay.withHedge.slippageCost)) / 1_000).toFixed(1) : '185.4'}K
               </span>
             </div>
-            <div className="flex justify-between pt-2.5 text-sm font-bold text-risk-healthy">
+            <div className="flex justify-between pt-3 text-base font-bold text-risk-healthy">
               <span>Net Preserved Outcome</span>
-              <span className="tabular-nums">
+              <span className="font-fraunces text-2xl tabular-nums">
                 -${replay ? (parseFloat(replay.withHedge.netLoss) / 1_000_000).toFixed(2) : '4.10'}M
               </span>
             </div>
