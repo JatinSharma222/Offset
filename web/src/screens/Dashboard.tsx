@@ -17,8 +17,19 @@ import { RiskBadge } from '../components/RiskBadge';
 import { PriceChart } from '../components/PriceChart';
 import { RiskEnginePanel } from '../components/RiskEnginePanel';
 import { EventFeed, EventItem } from '../components/EventFeed';
+import { GlossaryLabel } from '../components/GlossaryLabel';
 import { RiskLevel } from '../theme/risk';
-import { Zap, RotateCcw, TrendingDown, ShieldAlert, Sliders } from 'lucide-react';
+import {
+  Zap,
+  RotateCcw,
+  TrendingDown,
+  ShieldAlert,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  Layers,
+} from 'lucide-react';
 
 interface ChartPoint {
   time: number;
@@ -26,6 +37,8 @@ interface ChartPoint {
 }
 
 export const DashboardScreen: React.FC = () => {
+  // Plain view is the default per 12-UI-REVAMP.md
+  const [showTechnical, setShowTechnical] = useState(false);
   const [customPriceInput, setCustomPriceInput] = useState('');
   const [liveChartPoints, setLiveChartPoints] = useState<ChartPoint[]>([]);
 
@@ -113,7 +126,8 @@ export const DashboardScreen: React.FC = () => {
   const hedgeRatio = snap?.hedgeRatio ? parseFloat(snap.hedgeRatio) : 0.5;
   const targetHedge = snap?.targetHedge ? parseFloat(snap.targetHedge) : exposure * hedgeRatio;
   const currentHedge = targetHedge;
-  const netExposure = exposure - currentHedge;
+  const netExposure = Math.max(0, exposure - currentHedge);
+  const distancePct = (distance * 100).toFixed(1);
 
   // Sync historical snapshots into liveChartPoints
   useEffect(() => {
@@ -157,6 +171,42 @@ export const DashboardScreen: React.FC = () => {
     ];
   }, [liveChartPoints, price]);
 
+  // Plain language headline and narrative sentence generated from RiskSnapshot
+  const narrative = useMemo(() => {
+    const hedgeFormatted = `$${(currentHedge / 1_000_000).toFixed(1)}M`;
+
+    switch (riskLevel) {
+      case 'CRITICAL':
+        return {
+          headline: `Your collateral is critically close to trouble — ${distancePct}% away.`,
+          subtext: `We've scaled protection to ${hedgeFormatted} to prevent catastrophic liquidation loss.`,
+          colorClass: 'text-red-400',
+        };
+      case 'DANGER':
+        return {
+          headline: `Your collateral is in danger — ${distancePct}% away from trouble.`,
+          subtext: `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`,
+          colorClass: 'text-orange-400',
+        };
+      case 'WARNING':
+        return {
+          headline: `Your collateral is getting risky — ${distancePct}% away from trouble.`,
+          subtext: `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`,
+          colorClass: 'text-amber-400',
+        };
+      case 'HEALTHY':
+      default:
+        return {
+          headline: `Your collateral is ${distancePct}% away from trouble.`,
+          subtext:
+            currentHedge > 0
+              ? `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`
+              : `No protection needed right now. An automated hedge will open if prices drop near trouble.`,
+          colorClass: 'text-white',
+        };
+    }
+  }, [riskLevel, distancePct, currentHedge]);
+
   // Derive recent activity from executions and live state
   const recentEvents: EventItem[] = useMemo(() => {
     const events: EventItem[] = [];
@@ -171,7 +221,7 @@ export const DashboardScreen: React.FC = () => {
         events.push({
           time: timeStr,
           type: 'EXECUTION',
-          message: `${exec.riskLevel} → Hedge adjusted to $${(parseFloat(exec.targetNotional) / 1_000_000).toFixed(2)}M (${exec.status})`,
+          message: `${exec.riskLevel} → Protection adjusted to $${(parseFloat(exec.targetNotional) / 1_000_000).toFixed(2)}M (${exec.status})`,
           highlight: exec.status === 'FILLED' || exec.status === 'Filled',
         });
       }
@@ -180,19 +230,19 @@ export const DashboardScreen: React.FC = () => {
         {
           time: '14:32',
           type: 'EXECUTION',
-          message: `${riskLevel} triggered → Hedge target $${(targetHedge / 1_000_000).toFixed(2)}M SOL-PERP`,
+          message: `${riskLevel} triggered → Protection target $${(targetHedge / 1_000_000).toFixed(2)}M SOL-PERP`,
           highlight: true,
         },
         {
           time: '14:19',
           type: 'RISK',
-          message: `Distance to liquidation boundary: ${(distance * 100).toFixed(1)}%`,
+          message: `How close to trouble: ${(distance * 100).toFixed(1)}%`,
           highlight: distance <= 0.15,
         },
         {
           time: '13:58',
           type: 'STATUS',
-          message: `Health factor evaluated: ${healthFactor.toFixed(3)}`,
+          message: `Safety margin evaluated: ${healthFactor.toFixed(3)}`,
         },
         {
           time: '13:00',
@@ -280,266 +330,381 @@ export const DashboardScreen: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* On-Chain Solana Ingestion & Live Status Banner */}
-      <div className="bg-[#12141a] border border-[#232733] rounded-lg px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            ON-CHAIN SOLANA INGESTION
+    <div className="space-y-8">
+      {/* Top Controls: On-Chain Banner, Stress-Test Toolbar, and Plain/Technical Toggle */}
+      <div className="space-y-3">
+        {/* On-Chain Status Bar */}
+        <div className="bg-[#12141a] border border-[#232733] rounded-lg px-4 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              ON-CHAIN SOLANA INGESTION
+            </div>
+            <span className="text-neutral-500">|</span>
+            <span className="text-neutral-400">
+              Obligation: <span className="text-white">{obligationData?.obligation?.pubkey?.slice(0, 8)}...{obligationData?.obligation?.pubkey?.slice(-4)}</span>
+            </span>
+            <span className="text-neutral-500">|</span>
+            <span className="text-neutral-400">
+              Market: <span className="text-indigo-400">{obligationData?.obligation?.lendingMarket || 'Kamino Lending Vault'}</span>
+            </span>
           </div>
-          <span className="text-neutral-500">|</span>
-          <span className="text-neutral-400">
-            Obligation: <span className="text-white">{obligationData?.obligation?.pubkey?.slice(0, 8)}...{obligationData?.obligation?.pubkey?.slice(-4)}</span>
-          </span>
-          <span className="text-neutral-500">|</span>
-          <span className="text-neutral-400">
-            Market: <span className="text-indigo-400">{obligationData?.obligation?.lendingMarket || 'Kamino Lending Vault'}</span>
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-neutral-400">View:</span>
+              <div className="inline-flex rounded border border-[#232733] bg-[#0d0f14] p-0.5">
+                <button
+                  onClick={() => setShowTechnical(false)}
+                  className={`px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider transition-colors ${
+                    !showTechnical
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Plain
+                </button>
+                <button
+                  onClick={() => setShowTechnical(true)}
+                  className={`px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider transition-colors ${
+                    showTechnical
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Technical
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-neutral-400">
-          <span>
-            Deposits: <span className="text-white font-bold">{obligationData?.obligation?.deposits?.[0]?.depositedAmount ? parseFloat(obligationData.obligation.deposits[0].depositedAmount).toLocaleString() : '50,000'} SOL</span> (LT: {obligationData?.obligation?.deposits?.[0]?.liquidationThreshold ? (parseFloat(obligationData.obligation.deposits[0].liquidationThreshold) * 100).toFixed(0) : '80'}%)
-          </span>
-          <span className="text-neutral-600">•</span>
-          <span>
-            Debt: <span className="text-white font-bold">${obligationData?.obligation?.borrows?.[0]?.borrowedAmount ? (parseFloat(obligationData.obligation.borrows[0].borrowedAmount) / 1_000_000).toFixed(2) : '6.50'}M USDC</span>
-          </span>
-          <span className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/30 text-[10px] uppercase font-bold">
-            {obligationData?.obligation?.source || 'Kamino Ingested'}
-          </span>
-        </div>
-      </div>
 
-      {/* Scenario-Specific Parameter Customizer */}
-      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 space-y-3 text-xs font-mono">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Market Stress-Test Driver */}
+        <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-2 text-neutral-300 font-bold">
-            <Sliders className="w-4 h-4 text-indigo-400" />
-            <span>SOLANA OBLIGATION SCENARIO:</span>
+            <Zap className="w-4 h-4 text-amber-400" />
+            <span>MARKET STRESS-TEST DRIVER:</span>
           </div>
 
           <div className="flex items-center flex-wrap gap-2">
             <button
-              onClick={() => handleSelectProtocol('kamino')}
-              disabled={updatingObligation}
-              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
-                selectedProtocol === 'kamino'
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
-              }`}
+              onClick={() => handleShock(10)}
+              disabled={shocking}
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold transition-colors disabled:opacity-50"
             >
-              <span>Kamino Vault</span>
-              <span className="text-[10px] opacity-75">(50k SOL · $6.5M · Cliff $162.50)</span>
+              <TrendingDown className="w-3.5 h-3.5" />
+              -10% (Warning)
             </button>
 
             <button
-              onClick={() => handleSelectProtocol('solend')}
-              disabled={updatingObligation}
-              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
-                selectedProtocol === 'solend'
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
-              }`}
+              onClick={() => handleShock(20)}
+              disabled={shocking}
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 font-semibold transition-colors disabled:opacity-50"
             >
-              <span>Save / Solend</span>
-              <span className="text-[10px] opacity-75">(100k SOL · $14M · Cliff $175.00)</span>
+              <TrendingDown className="w-3.5 h-3.5" />
+              -20% (Danger)
             </button>
 
             <button
-              onClick={() => handleSelectProtocol('solend-whale')}
-              disabled={updatingObligation}
-              className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
-                selectedProtocol === 'solend-whale'
-                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
-              }`}
+              onClick={() => handleShock(35)}
+              disabled={shocking}
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold transition-colors disabled:opacity-50"
             >
-              <span>Solend Whale</span>
-              <span className="text-[10px] opacity-75">(5.7M SOL · $108M)</span>
+              <TrendingDown className="w-3.5 h-3.5" />
+              -35% (Critical Cliff)
+            </button>
+
+            <form onSubmit={handleSetCustomPrice} className="flex items-center gap-1">
+              <input
+                type="number"
+                step="0.01"
+                placeholder="$ Price"
+                value={customPriceInput}
+                onChange={(e) => setCustomPriceInput(e.target.value)}
+                className="w-20 px-2 py-1 bg-[#0a0b0e] border border-[#2b3040] rounded text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={settingPrice || !customPriceInput}
+                className="px-2 py-1 rounded bg-[#1f2430] hover:bg-[#2b3245] text-neutral-200 border border-[#333b4d] font-semibold transition-colors disabled:opacity-50"
+              >
+                Set
+              </button>
+            </form>
+
+            <button
+              onClick={handleResetPrice}
+              disabled={resetting}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/40 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Oracle
             </button>
 
             <button
-              onClick={() => setShowCustomForm(!showCustomForm)}
-              className={`px-3 py-1.5 rounded border transition-colors font-semibold ${
-                showCustomForm || selectedProtocol === 'custom'
-                  ? 'bg-[#232733] text-indigo-300 border-indigo-500/50'
-                  : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white'
-              }`}
+              onClick={handleTriggerRefusal}
+              disabled={triggeringRefusal}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-semibold transition-colors disabled:opacity-50"
+              title="Deliberately trigger a pre-trade safety limit refusal"
             >
-              Custom Params {showCustomForm ? '▲' : '▼'}
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Safety Refusal
             </button>
           </div>
         </div>
-
-        {/* Expandable Custom Parameter Form */}
-        {showCustomForm && (
-          <form onSubmit={handleApplyCustom} className="pt-3 border-t border-[#1e222d] flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-neutral-400">Collateral:</span>
-              <input
-                type="number"
-                value={customCollateral}
-                onChange={(e) => setCustomCollateral(e.target.value)}
-                placeholder="SOL Amount"
-                className="w-28 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
-              />
-              <span className="text-neutral-500">SOL</span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-neutral-400">Debt:</span>
-              <input
-                type="number"
-                value={customDebt}
-                onChange={(e) => setCustomDebt(e.target.value)}
-                placeholder="USDC Debt"
-                className="w-32 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
-              />
-              <span className="text-neutral-500">USDC</span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-neutral-400">LT:</span>
-              <input
-                type="number"
-                step="1"
-                min="10"
-                max="95"
-                value={customLt}
-                onChange={(e) => setCustomLt(e.target.value)}
-                className="w-16 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
-              />
-              <span className="text-neutral-500">%</span>
-            </div>
-
-            <button
-              type="submit"
-              disabled={updatingObligation}
-              className="px-3.5 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded transition-colors"
-            >
-              Apply Custom Obligation
-            </button>
-          </form>
-        )}
       </div>
 
-      {/* Live Stress-Test & Simulation Action Bar */}
-      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2 text-neutral-300 font-bold">
-          <Zap className="w-4 h-4 text-amber-400" />
-          <span>MARKET STRESS-TEST DRIVER:</span>
+      {/* TOP-TO-BOTTOM NARRATIVE: HERO NARRATIVE SECTION */}
+      <section className="bg-[#12141a] border border-[#232733] rounded-xl p-8 space-y-6 text-left">
+        {/* Hero Visual Slot (collateral metaphor, prepared for three.js in Phase 4) */}
+        <div className="w-full bg-[#0a0b0e] border border-[#232733] rounded-lg p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[160px]">
+          <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+
+          {/* Static Visual Representation of the Collateral & Catching Plane Metaphor */}
+          <div className="w-full max-w-md flex flex-col items-center gap-3">
+            <div className="flex items-center justify-between w-full text-xs font-mono text-neutral-400 px-2">
+              <span className="flex items-center gap-1.5 text-neutral-300 font-semibold">
+                <Layers className="w-4 h-4 text-indigo-400" />
+                Collateral Form ({obligationData?.obligation?.lendingMarket || 'Kamino Vault'})
+              </span>
+              <RiskBadge level={riskLevel} />
+            </div>
+
+            {/* Visual Gap Indicator */}
+            <div className="w-full h-16 bg-[#12141a] border border-[#232733] rounded relative flex items-center justify-center p-2">
+              <div
+                className="absolute left-4 right-4 h-1.5 rounded transition-all duration-500"
+                style={{
+                  backgroundColor: riskLevel === 'HEALTHY' ? '#10B981' : riskLevel === 'WARNING' ? '#F59E0B' : riskLevel === 'DANGER' ? '#F97316' : '#EF4444',
+                  bottom: `${Math.min(Math.max(distance * 100, 15), 75)}%`,
+                }}
+              />
+              {currentHedge > 0 && (
+                <div
+                  className="absolute left-2 right-2 h-1 bg-indigo-500 rounded shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-500"
+                  style={{
+                    bottom: `${Math.max(Math.min(distance * 100 - 8, 55), 10)}%`,
+                  }}
+                  title="Protective Hedge Plane"
+                />
+              )}
+              <span className="text-[11px] font-mono text-neutral-400 z-10 bg-[#12141a]/90 px-2 py-0.5 rounded">
+                Distance to trouble: <span className="font-bold text-white">{distancePct}%</span>
+                {currentHedge > 0 && <span className="text-indigo-400 font-semibold"> · Hedge cushion active</span>}
+              </span>
+            </div>
+
+            <div className="w-full flex justify-between text-[11px] font-mono text-neutral-500 px-2 border-t border-[#1e222d] pt-1">
+              <span>SOL Price: ${price.toFixed(2)}</span>
+              <span className="text-red-400">The danger line: ${liqPrice.toFixed(2)}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2">
-          <button
-            onClick={() => handleShock(10)}
-            disabled={shocking}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold transition-colors disabled:opacity-50"
-          >
-            <TrendingDown className="w-3.5 h-3.5" />
-            -10% (Warning)
-          </button>
+        {/* Narrative Headline & Plain Explanation */}
+        <div className="space-y-3">
+          <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${narrative.colorClass}`}>
+            &ldquo;{narrative.headline}&rdquo;
+          </h1>
+          <p className="text-base text-neutral-300 leading-relaxed max-w-3xl">
+            {narrative.subtext}
+          </p>
+        </div>
 
+        {/* Disclosure Toggle */}
+        <div className="pt-2">
           <button
-            onClick={() => handleShock(20)}
-            disabled={shocking}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 font-semibold transition-colors disabled:opacity-50"
+            onClick={() => setShowTechnical(!showTechnical)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#181b22] hover:bg-[#232733] border border-[#2b3040] text-sm text-neutral-300 hover:text-white transition-colors"
           >
-            <TrendingDown className="w-3.5 h-3.5" />
-            -20% (Danger)
+            <span>{showTechnical ? 'Hide technical detail' : 'See technical detail'}</span>
+            {showTechnical ? (
+              <ChevronUp className="w-4 h-4 text-indigo-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-indigo-400" />
+            )}
           </button>
+        </div>
+      </section>
 
-          <button
-            onClick={() => handleShock(35)}
-            disabled={shocking}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold transition-colors disabled:opacity-50"
-          >
-            <TrendingDown className="w-3.5 h-3.5" />
-            -35% (Critical Cliff)
-          </button>
+      {/* DISCLOSED PROGRESSIVELY: TECHNICAL DETAIL TIER */}
+      {showTechnical && (
+        <section className="space-y-6 pt-2 border-t border-[#232733] animate-fadeIn">
+          {/* Scenario-Specific Parameter Customizer */}
+          <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 space-y-3 text-xs font-mono">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-neutral-300 font-bold">
+                <Sliders className="w-4 h-4 text-indigo-400" />
+                <span>SOLANA OBLIGATION SCENARIO:</span>
+              </div>
 
-          <form onSubmit={handleSetCustomPrice} className="flex items-center gap-1">
-            <input
-              type="number"
-              step="0.01"
-              placeholder="$ Price"
-              value={customPriceInput}
-              onChange={(e) => setCustomPriceInput(e.target.value)}
-              className="w-24 px-2 py-1 bg-[#0a0b0e] border border-[#2b3040] rounded text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+              <div className="flex items-center flex-wrap gap-2">
+                <button
+                  onClick={() => handleSelectProtocol('kamino')}
+                  disabled={updatingObligation}
+                  className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                    selectedProtocol === 'kamino'
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                  }`}
+                >
+                  <span>Kamino Vault</span>
+                  <span className="text-[10px] opacity-75">(50k SOL · $6.5M · Cliff $162.50)</span>
+                </button>
+
+                <button
+                  onClick={() => handleSelectProtocol('solend')}
+                  disabled={updatingObligation}
+                  className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                    selectedProtocol === 'solend'
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                  }`}
+                >
+                  <span>Save / Solend</span>
+                  <span className="text-[10px] opacity-75">(100k SOL · $14M · Cliff $175.00)</span>
+                </button>
+
+                <button
+                  onClick={() => handleSelectProtocol('solend-whale')}
+                  disabled={updatingObligation}
+                  className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
+                    selectedProtocol === 'solend-whale'
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                  }`}
+                >
+                  <span>Solend Whale</span>
+                  <span className="text-[10px] opacity-75">(5.7M SOL · $108M)</span>
+                </button>
+
+                <button
+                  onClick={() => setShowCustomForm(!showCustomForm)}
+                  className={`px-3 py-1.5 rounded border transition-colors font-semibold ${
+                    showCustomForm || selectedProtocol === 'custom'
+                      ? 'bg-[#232733] text-indigo-300 border-indigo-500/50'
+                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white'
+                  }`}
+                >
+                  Custom Params {showCustomForm ? '▲' : '▼'}
+                </button>
+              </div>
+            </div>
+
+            {/* Expandable Custom Parameter Form */}
+            {showCustomForm && (
+              <form onSubmit={handleApplyCustom} className="pt-3 border-t border-[#1e222d] flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-neutral-400">Collateral:</span>
+                  <input
+                    type="number"
+                    value={customCollateral}
+                    onChange={(e) => setCustomCollateral(e.target.value)}
+                    placeholder="SOL Amount"
+                    className="w-28 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-neutral-500">SOL</span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-neutral-400">Debt:</span>
+                  <input
+                    type="number"
+                    value={customDebt}
+                    onChange={(e) => setCustomDebt(e.target.value)}
+                    placeholder="USDC Debt"
+                    className="w-32 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-neutral-500">USDC</span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-neutral-400">LT:</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="10"
+                    max="95"
+                    value={customLt}
+                    onChange={(e) => setCustomLt(e.target.value)}
+                    className="w-16 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                  />
+                  <span className="text-neutral-500">%</span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={updatingObligation}
+                  className="px-3.5 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded transition-colors"
+                >
+                  Apply Custom Obligation
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* 4 Stat Cards with Glossary Labels */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCard
+              label={<GlossaryLabel term="riskLevel" />}
+              value={<RiskBadge level={riskLevel} className="text-sm py-1 px-3" />}
+              subtitle={
+                <span>
+                  <GlossaryLabel term="liquidationDistance" plainText="How close to trouble" />: {distancePct}%
+                </span>
+              }
+              change={riskLevel !== 'HEALTHY' ? 'Escalating' : 'Nominal'}
             />
-            <button
-              type="submit"
-              disabled={settingPrice || !customPriceInput}
-              className="px-2.5 py-1 rounded bg-[#1f2430] hover:bg-[#2b3245] text-neutral-200 border border-[#333b4d] font-semibold transition-colors disabled:opacity-50"
-            >
-              Set
-            </button>
-          </form>
 
-          <button
-            onClick={handleResetPrice}
-            disabled={resetting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/40 transition-colors disabled:opacity-50 ml-1"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset Oracle
-          </button>
+            <StatCard
+              label="Collateral Exposure"
+              value={`$${(exposure / 1_000_000).toFixed(2)}M`}
+              subtitle="SOL collateral"
+              change="Long"
+            />
 
-          <button
-            onClick={handleTriggerRefusal}
-            disabled={triggeringRefusal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-semibold transition-colors disabled:opacity-50 ml-1"
-            title="Deliberately trigger a pre-trade safety limit refusal (> $1M order limit) to show audit log and order book snapshot"
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Trigger Safety Refusal
-          </button>
-        </div>
-      </div>
+            <StatCard
+              label={<GlossaryLabel term="targetHedge" />}
+              value={`$${(currentHedge / 1_000_000).toFixed(2)}M`}
+              subtitle="SOL-PERP on Hyperliquid"
+              change={`Short (${(hedgeRatio * 100).toFixed(0)}%)`}
+            />
 
-      {/* Top Stat Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Risk State"
-          value={<RiskBadge level={riskLevel} className="text-sm py-1 px-3" />}
-          subtitle={`Boundary distance ${(distance * 100).toFixed(1)}%`}
-          change={riskLevel !== 'HEALTHY' ? 'Escalating' : 'Nominal'}
-        />
+            <StatCard
+              label={<GlossaryLabel term="residualExposure" />}
+              value={`$${(netExposure / 1_000_000).toFixed(2)}M`}
+              subtitle="Unprotected exposure"
+              change={`${((1 - hedgeRatio) * 100).toFixed(0)}% exposed`}
+            />
+          </div>
 
-        <StatCard
-          label="Collateral Exposure"
-          value={`$${(exposure / 1_000_000).toFixed(2)}M`}
-          subtitle="SOL Collateral"
-          change="Long"
-        />
+          {/* Risk Engine Diagnostics & Event Feed Split */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RiskEnginePanel
+              price={price}
+              liquidationPrice={liqPrice}
+              distance={distance}
+              healthFactor={healthFactor}
+              recommendedHedge={targetHedge}
+              currentHedge={currentHedge}
+              level={riskLevel}
+            />
 
-        <StatCard
-          label="Automated Hedge"
-          value={`$${(currentHedge / 1_000_000).toFixed(2)}M`}
-          subtitle="SOL-PERP on Hyperliquid"
-          change={`Short (${(hedgeRatio * 100).toFixed(0)}%)`}
-        />
+            <EventFeed events={recentEvents} />
+          </div>
+        </section>
+      )}
 
-        <StatCard
-          label="Net Protocol Exposure"
-          value={`$${(netExposure / 1_000_000).toFixed(2)}M`}
-          subtitle="Unhedged delta"
-          change={`${((1 - hedgeRatio) * 100).toFixed(0)}% exposed`}
-        />
-      </div>
-
-      {/* Main Chart Section */}
-      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-5">
-        <div className="flex items-center justify-between mb-4">
+      {/* MAIN PRICE CHART: SOL COLLATERAL PRICE & THE DANGER LINE */}
+      <section className="bg-[#12141a] border border-[#232733] rounded-lg p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-white">SOL Collateral Price & Cliff Proximity</h2>
+            <h2 className="text-base font-semibold text-white">SOL Collateral Price & The Danger Line</h2>
             <p className="text-xs text-neutral-400 font-mono mt-0.5">
-              Automated triggers fire at configured liquidation distance thresholds
+              Automated protection activates before collateral reaches the danger line
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               ORCHESTRATION ACTIVE
             </span>
@@ -552,23 +717,26 @@ export const DashboardScreen: React.FC = () => {
           warningPrice={liqPrice * 1.15}
           dangerPrice={liqPrice * 1.10}
           criticalPrice={liqPrice * 1.05}
+          mode={showTechnical ? 'technical' : 'plain'}
+          hedgeActive={currentHedge > 0}
         />
-      </div>
+      </section>
 
-      {/* Bottom Diagnostics & Activity Split */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RiskEnginePanel
-          price={price}
-          liquidationPrice={liqPrice}
-          distance={distance}
-          healthFactor={healthFactor}
-          recommendedHedge={targetHedge}
-          currentHedge={currentHedge}
-          level={riskLevel}
-        />
-
-        <EventFeed events={recentEvents} />
-      </div>
+      {/* PERMANENT CUSTODY REASSURANCE BANNER PER 12-UI-REVAMP.MD */}
+      <section className="bg-[#101318] border border-[#232733] rounded-xl p-6 text-center space-y-2">
+        <div className="inline-flex items-center justify-center p-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-1">
+          <Shield className="w-5 h-5" />
+        </div>
+        <h3 className="text-base font-bold text-white tracking-tight">
+          We never hold your funds.
+        </h3>
+        <p className="text-sm text-neutral-300 font-medium">
+          We&apos;re only ever allowed to trade — not withdraw.
+        </p>
+        <p className="text-xs text-neutral-500 max-w-xl mx-auto leading-relaxed pt-1">
+          Your collateral remains secured in Kamino/Solend. Offset operates strictly via restricted delegated trading keys on Hyperliquid L1, making capital withdrawal structurally impossible.
+        </p>
+      </section>
     </div>
   );
 };

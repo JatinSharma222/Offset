@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_EXECUTION_STATUS, SET_KILL_SWITCH, UPDATE_POLICY } from '../graphql/operations';
-import { Check, X, Shield, AlertOctagon, Sliders, Save } from 'lucide-react';
+import { Check, X, Shield, AlertOctagon, Sliders, Save, Lock } from 'lucide-react';
+import { GlossaryLabel } from '../components/GlossaryLabel';
 
 export const SettingsScreen: React.FC = () => {
   const [localKillSwitch, setLocalKillSwitch] = useState(false);
@@ -80,16 +81,28 @@ export const SettingsScreen: React.FC = () => {
         </p>
       </div>
 
+      {/* Custody Reassurance Banner */}
+      <div className="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-lg flex items-start gap-3">
+        <Shield className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+        <div>
+          <h4 className="text-sm font-semibold text-white">You keep custody. We trade. We cannot withdraw.</h4>
+          <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
+            All positions are held in your own exchange account. The automated engine uses a restricted sub-account key
+            with mathematical constraints guaranteeing funds can never be withdrawn or transferred elsewhere.
+          </p>
+        </div>
+      </div>
+
       {/* Custody & Permissions Section */}
       <div className="bg-[#12141a] border border-[#232733] rounded-lg p-5">
         <div className="flex items-center gap-2 pb-3 border-b border-[#232733] text-sm font-semibold text-white">
-          <Shield className="w-4 h-4 text-emerald-400" />
-          <span>Execution Venue & Delegation</span>
+          <Lock className="w-4 h-4 text-emerald-400" />
+          <span>Execution Venue & Custody Boundary</span>
         </div>
 
         <div className="mt-4 space-y-4 text-xs font-mono">
           <div className="flex justify-between items-center py-2 border-b border-[#1a1d26]">
-            <span className="text-neutral-400">Hyperliquid Connection</span>
+            <span className="text-neutral-400">Hyperliquid connection</span>
             <span className="flex items-center gap-1 text-emerald-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               {status?.connected ? 'Connected (Testnet)' : 'Connected'}
@@ -97,34 +110,42 @@ export const SettingsScreen: React.FC = () => {
           </div>
 
           <div className="flex justify-between items-center py-2 border-b border-[#1a1d26]">
-            <span className="text-neutral-400">Master Protocol Account</span>
+            <span className="text-neutral-400">Master protocol account</span>
             <span className="text-neutral-200">0x71C...b29F</span>
           </div>
 
           <div className="flex justify-between items-center py-2 border-b border-[#1a1d26]">
-            <span className="text-neutral-400">Delegated Trading Key</span>
+            <GlossaryLabel term="agentWallet" />
             <span className="text-neutral-200">
               {status?.accountAddress || '0x84Ae...01Cd (Offset Trading Key)'}
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2 border-b border-[#1a1d26]">
-            <span className="text-neutral-400">Trading Permissions</span>
-            <span className="flex items-center gap-1 text-emerald-400 font-bold">
-              <Check className="w-4 h-4" /> Granted (Place / Cancel SOL-PERP)
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-[#1a1d26] bg-red-950/20 p-2 rounded">
-            <div>
-              <span className="text-red-400 font-bold">Withdraw / Transfer Permissions</span>
-              <p className="text-[11px] text-neutral-400 font-sans mt-0.5">
-                Structurally impossible. Exchange-level constraint prevents funds leaving protocol custody.
-              </p>
+          {/* Permissions trust block: Trading ✓ / Withdrawal ✗ */}
+          <div className="p-3 bg-[#0d0f14] border border-[#232733] rounded-lg space-y-3">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-white font-semibold block">Trading permissions</span>
+                <span className="text-[11px] text-neutral-400 font-sans">
+                  Allowed to open and close protective positions
+                </span>
+              </div>
+              <span className="flex items-center gap-1 text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/30">
+                <Check className="w-4 h-4" /> Granted
+              </span>
             </div>
-            <span className="flex items-center gap-1 text-red-400 font-bold">
-              <X className="w-4 h-4 text-red-400 stroke-[3]" /> Denied
-            </span>
+
+            <div className="flex justify-between items-center pt-2 border-t border-[#1a1d26]">
+              <div>
+                <span className="text-red-400 font-bold block">Withdrawal permissions</span>
+                <span className="text-[11px] text-neutral-400 font-sans">
+                  We cannot move your funds — structurally impossible at exchange level
+                </span>
+              </div>
+              <span className="flex items-center gap-1 text-red-400 font-bold bg-red-500/10 px-2.5 py-1 rounded border border-red-500/30">
+                <X className="w-4 h-4 stroke-[3]" /> Denied
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -134,7 +155,7 @@ export const SettingsScreen: React.FC = () => {
         <div className="flex items-center justify-between pb-3 border-b border-[#232733]">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <Sliders className="w-4 h-4 text-indigo-400" />
-            Configurable Liquidation Defense Policy
+            Protection Policy
           </h3>
           {policySavedMsg && (
             <span className="text-xs font-mono text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
@@ -148,12 +169,14 @@ export const SettingsScreen: React.FC = () => {
             {/* Warning Tier */}
             <div className="p-3 bg-[#0d0f14] border border-amber-500/20 rounded">
               <div className="font-bold text-amber-400 mb-2 flex items-center justify-between">
-                <span>WARNING TIER</span>
+                <span>Warning</span>
                 <span className="text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded">Tier 1</span>
               </div>
               <div className="space-y-2 text-neutral-300">
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="liquidationDistance" plainText="How close to trouble (%)" />
+                  </label>
                   <input
                     type="number"
                     min="1"
@@ -164,7 +187,9 @@ export const SettingsScreen: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="targetHedge" plainText="Protection ratio (%)" />
+                  </label>
                   <input
                     type="number"
                     min="0"
@@ -180,12 +205,14 @@ export const SettingsScreen: React.FC = () => {
             {/* Danger Tier */}
             <div className="p-3 bg-[#0d0f14] border border-orange-500/20 rounded">
               <div className="font-bold text-orange-400 mb-2 flex items-center justify-between">
-                <span>DANGER TIER</span>
+                <span>Danger</span>
                 <span className="text-[10px] bg-orange-500/10 px-1.5 py-0.5 rounded">Tier 2</span>
               </div>
               <div className="space-y-2 text-neutral-300">
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="liquidationDistance" plainText="How close to trouble (%)" />
+                  </label>
                   <input
                     type="number"
                     min="1"
@@ -196,7 +223,9 @@ export const SettingsScreen: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="targetHedge" plainText="Protection ratio (%)" />
+                  </label>
                   <input
                     type="number"
                     min="0"
@@ -212,12 +241,14 @@ export const SettingsScreen: React.FC = () => {
             {/* Critical Tier */}
             <div className="p-3 bg-[#0d0f14] border border-red-500/20 rounded">
               <div className="font-bold text-red-400 mb-2 flex items-center justify-between">
-                <span>CRITICAL TIER</span>
+                <span>Critical</span>
                 <span className="text-[10px] bg-red-500/10 px-1.5 py-0.5 rounded">Tier 3</span>
               </div>
               <div className="space-y-2 text-neutral-300">
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Trigger Distance (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="liquidationDistance" plainText="How close to trouble (%)" />
+                  </label>
                   <input
                     type="number"
                     min="1"
@@ -228,7 +259,9 @@ export const SettingsScreen: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-neutral-400 block mb-1">Hedge Ratio (%):</label>
+                  <label className="text-[11px] text-neutral-400 block mb-1">
+                    <GlossaryLabel term="targetHedge" plainText="Protection ratio (%)" />
+                  </label>
                   <input
                     type="number"
                     min="0"
@@ -260,7 +293,7 @@ export const SettingsScreen: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <AlertOctagon className="w-4 h-4 text-red-400" /> Circuit Breaker / Kill Switch
+              <AlertOctagon className="w-4 h-4 text-red-400" /> Circuit breaker / kill switch
             </h3>
             <p className="text-xs text-neutral-400 font-mono mt-1">
               Instantly cancels open orders and halts automated execution across all tiers.

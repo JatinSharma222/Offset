@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RiskBadge } from './RiskBadge';
 import { BookSnapshot } from './BookSnapshot';
 import { RiskLevel } from '../theme/risk';
+import { GlossaryLabel } from './GlossaryLabel';
 
 export interface ExecutionRow {
   id: string;
@@ -32,11 +33,19 @@ export const ExecutionTable: React.FC<ExecutionTableProps> = ({ executions }) =>
         <thead>
           <tr className="border-b border-[#232733] text-neutral-400 uppercase tracking-wider text-[11px] bg-[#0d0f14]">
             <th className="py-3 px-4">Time</th>
-            <th className="py-3 px-4">Risk</th>
-            <th className="py-3 px-4 text-right">Target</th>
-            <th className="py-3 px-4 text-right">Filled</th>
-            <th className="py-3 px-4 text-right">Slippage</th>
-            <th className="py-3 px-4 text-right">Residual</th>
+            <th className="py-3 px-4">Risk level</th>
+            <th className="py-3 px-4 text-right">
+              <GlossaryLabel term="targetHedge" />
+            </th>
+            <th className="py-3 px-4 text-right">
+              <GlossaryLabel term="filledNotional" />
+            </th>
+            <th className="py-3 px-4 text-right">
+              <GlossaryLabel term="slippage" />
+            </th>
+            <th className="py-3 px-4 text-right">
+              <GlossaryLabel term="residualExposure" />
+            </th>
             <th className="py-3 px-4 text-right">Status</th>
           </tr>
         </thead>
@@ -81,7 +90,7 @@ export const ExecutionTable: React.FC<ExecutionTableProps> = ({ executions }) =>
                 <tr className="bg-[#0f1117]">
                   <td colSpan={7} className="p-4 border-b border-[#232733]">
                     <div className="text-xs text-neutral-400 font-sans mb-2 font-semibold">
-                      Decision-time Top of Book Snapshot (Proof of Execution & Slippage)
+                      Decision-time top of book snapshot (proof of execution and cost of acting fast)
                     </div>
                     <BookSnapshot
                       bids={row.bookSnapshot.bids}

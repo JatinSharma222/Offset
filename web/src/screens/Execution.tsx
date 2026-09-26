@@ -170,12 +170,17 @@ export const ExecutionScreen: React.FC = () => {
         </div>
       </div>
 
+      {/* Plain language introductory sentence per 12-UI-REVAMP.md */}
+      <div className="px-4 py-3 bg-[#12141a] border border-[#232733] rounded-lg text-sm text-neutral-300">
+        Every time the system adjusted its hedge, here&apos;s exactly what happened — including when it decided not to.
+      </div>
+
       <ExecutionTable executions={executions} />
 
       <div className="p-4 bg-[#12141a] border border-[#232733] rounded-lg text-xs text-neutral-400 leading-relaxed">
         <span className="text-white font-semibold">Pre-Trade Safety Guarantee:</span> Every order strictly undergoes
-        margin headroom verification, price staleness check (&lt;30s), maximum single clip constraints, and slippage
-        tolerance boundaries before transmission to the Hyperliquid DEX.
+        margin headroom verification, price staleness check (&lt;30s), maximum single clip constraints, and cost of acting fast
+        (slippage) tolerance boundaries before transmission to the Hyperliquid DEX.
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { RiskBadge } from '../components/RiskBadge';
 import { ImpactPanel } from '../components/ImpactPanel';
 import { PriceChart } from '../components/PriceChart';
 import { RiskLevel } from '../theme/risk';
+import { GlossaryLabel } from '../components/GlossaryLabel';
 
 interface ReplayTickGql {
   timestamp: string;
@@ -140,9 +141,9 @@ export const ReplayScreen: React.FC = () => {
 
   const executionFired = currentTick?.execution;
   const eventMessage = executionFired
-    ? `⚡ HEDGE ADJUSTED: Filled $${(parseFloat(executionFired.filledNotional) / 1_000_000).toFixed(2)}M SOL-PERP (${executionFired.status})`
+    ? `⚡ Protection adjusted: Actually in place $${(parseFloat(executionFired.filledNotional) / 1_000_000).toFixed(2)}M SOL-PERP (${executionFired.status})`
     : currentRiskLevel !== 'HEALTHY'
-    ? `⚠ ${currentRiskLevel} THRESHOLD ACTIVE (Distance: ${(parseFloat(currentTick?.snapshot.liquidationDistance || '0') * 100).toFixed(1)}%)`
+    ? `⚠ ${currentRiskLevel} tier active (How close to trouble: ${(parseFloat(currentTick?.snapshot.liquidationDistance || '0') * 100).toFixed(1)}%)`
     : null;
 
   return (
@@ -284,28 +285,32 @@ export const ReplayScreen: React.FC = () => {
       {/* Animation Status HUD */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-[#12141a] border border-[#232733] p-5 rounded-lg">
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">Simulation Time</span>
+          <span className="text-xs text-neutral-400 font-mono uppercase">Simulation time</span>
           <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
             {currentTime}
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">SOL Price</span>
+          <span className="text-xs text-neutral-400 font-mono uppercase">SOL price</span>
           <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
             ${currentPrice.toFixed(2)}
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">Risk Tier</span>
+          <span className="text-xs text-neutral-400 font-mono uppercase">
+            <GlossaryLabel term="riskLevel" />
+          </span>
           <div className="mt-1">
             <RiskBadge level={currentRiskLevel} />
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">Active Hedge Target</span>
+          <span className="text-xs text-neutral-400 font-mono uppercase">
+            <GlossaryLabel term="targetHedge" />
+          </span>
           <div className="text-lg font-bold font-mono text-indigo-400 mt-1 tabular-nums">
             ${(currentHedge / 1_000_000).toFixed(2)}M
           </div>
@@ -321,7 +326,11 @@ export const ReplayScreen: React.FC = () => {
               <div className="text-sm font-bold text-white font-mono">{eventMessage}</div>
               {executionFired?.slippageBps && (
                 <div className="text-xs text-emerald-400 font-mono mt-0.5">
-                  Execution slippage: {executionFired.slippageBps} bps
+                  <GlossaryLabel
+                    term="slippage"
+                    plainText={`Cost of acting fast: ${executionFired.slippageBps} bps`}
+                    technicalText={`Execution slippage: ${executionFired.slippageBps} bps`}
+                  />
                 </div>
               )}
             </div>
@@ -337,17 +346,17 @@ export const ReplayScreen: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#232733] mb-4 gap-2">
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              Historical Price Trajectory vs. Liquidation Cliff
+              Historical price trajectory vs. the danger line
             </h3>
             <p className="text-xs text-neutral-400 font-mono mt-0.5">
-              Live progression of collateral price decay against hard liquidation threshold & dynamic hedge triggers
+              Live progression of collateral price decay against the danger line & dynamic hedge triggers
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
             {replayLiqPrice && (
               <span className="flex items-center gap-1.5 text-red-400">
                 <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                Cliff: ${replayLiqPrice.toFixed(2)}
+                The danger line: ${replayLiqPrice.toFixed(2)}
               </span>
             )}
             <span className="text-neutral-500">
@@ -361,6 +370,7 @@ export const ReplayScreen: React.FC = () => {
           warningPrice={warningPrice}
           dangerPrice={dangerPrice}
           criticalPrice={criticalPrice}
+          hedgeActive={currentHedge > 0}
         />
       </div>
 
@@ -389,11 +399,11 @@ export const ReplayScreen: React.FC = () => {
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
-              <span>Hedge P&L Offset</span>
+              <span>Protection P&L Offset</span>
               <span className="text-neutral-500 tabular-nums">$0.00</span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
-              <span>Funding + Slippage Costs</span>
+              <span>Carry and cost of acting fast</span>
               <span className="text-neutral-500 tabular-nums">$0.00</span>
             </div>
             <div className="flex justify-between pt-2 text-sm font-bold text-red-400">
@@ -428,13 +438,18 @@ export const ReplayScreen: React.FC = () => {
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
-              <span>Hedge P&L Offset (Hyperliquid Short)</span>
+              <span>Protection P&L Offset (Hyperliquid short)</span>
               <span className="text-emerald-400 font-bold tabular-nums">
                 +${replay ? (parseFloat(replay.withHedge.hedgePnl) / 1_000_000).toFixed(2) : '22.50'}M
               </span>
             </div>
             <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
-              <span>Funding + Slippage Incurred</span>
+              <GlossaryLabel
+                term="slippage"
+                plainText="Carry & cost of acting fast"
+                technicalText="Funding + Slippage Incurred"
+                glossText="Combined funding fee carry and execution slippage from adjusting the hedge."
+              />
               <span className="text-amber-400 tabular-nums">
                 -${replay ? ((parseFloat(replay.withHedge.fundingCost) + parseFloat(replay.withHedge.slippageCost)) / 1_000).toFixed(1) : '185.4'}K
               </span>

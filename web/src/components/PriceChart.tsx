@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, LineStyle, SeriesMarker, Time } from 'lightweight-charts';
 
 interface ChartPoint {
   time: number;
@@ -12,6 +12,8 @@ interface PriceChartProps {
   warningPrice?: number;
   dangerPrice?: number;
   criticalPrice?: number;
+  mode?: 'plain' | 'technical';
+  hedgeActive?: boolean;
 }
 
 type PriceLine = ReturnType<ISeriesApi<'Area'>['createPriceLine']>;
@@ -22,6 +24,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({
   warningPrice,
   dangerPrice,
   criticalPrice,
+  mode = 'plain',
+  hedgeActive = false,
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -78,18 +82,36 @@ export const PriceChart: React.FC<PriceChartProps> = ({
   useEffect(() => {
     if (!seriesRef.current) return;
 
+    let sortedData: { time: Time; value: number }[] = [];
     if (data.length > 0) {
       // Sort and ensure unique timestamps
       const sortedMap = new Map<number, number>();
       for (const d of data) {
         sortedMap.set(d.time, d.value);
       }
-      const sortedData = Array.from(sortedMap.entries())
+      sortedData = Array.from(sortedMap.entries())
         .sort((a, b) => a[0] - b[0])
-        .map(([time, value]) => ({ time: time as any, value }));
+        .map(([time, value]) => ({ time: time as Time, value }));
 
       seriesRef.current.setData(sortedData);
       chartRef.current?.timeScale().fitContent();
+    }
+
+    // Set markers if hedge is active
+    if (hedgeActive && sortedData.length > 0) {
+      const latestPoint = sortedData[sortedData.length - 1];
+      const markers: SeriesMarker<Time>[] = [
+        {
+          time: latestPoint.time,
+          position: 'aboveBar',
+          color: '#38bdf8',
+          shape: 'arrowDown',
+          text: 'protection activated',
+        },
+      ];
+      seriesRef.current.setMarkers(markers);
+    } else {
+      seriesRef.current.setMarkers([]);
     }
 
     // Clear previous threshold lines to prevent visual stacking
@@ -102,7 +124,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     }
     priceLinesRef.current = [];
 
-    // Threshold lines
+    const isPlain = mode === 'plain';
+
+    // The liquidation line: single most important pixel in the product
     if (liquidationPrice) {
       const line = seriesRef.current.createPriceLine({
         price: liquidationPrice,
@@ -110,7 +134,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         lineWidth: 2,
         lineStyle: LineStyle.Solid,
         axisLabelVisible: true,
-        title: 'LIQUIDATION CLIFF',
+        title: isPlain ? 'The danger line' : 'Liquidation price',
       });
       priceLinesRef.current.push(line);
     }
@@ -122,7 +146,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
         axisLabelVisible: true,
-        title: 'CRITICAL (75% HEDGE)',
+        title: isPlain ? 'Critically close' : 'Critical (75% hedge)',
       });
       priceLinesRef.current.push(line);
     }
@@ -134,7 +158,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
-        title: 'DANGER (50% HEDGE)',
+        title: isPlain ? 'Getting risky' : 'Danger (50% hedge)',
       });
       priceLinesRef.current.push(line);
     }
@@ -146,11 +170,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
-        title: 'WARNING (25% HEDGE)',
+        title: isPlain ? 'Getting risky' : 'Warning (25% hedge)',
       });
       priceLinesRef.current.push(line);
     }
-  }, [data, liquidationPrice, warningPrice, dangerPrice, criticalPrice]);
+  }, [data, liquidationPrice, warningPrice, dangerPrice, criticalPrice, mode, hedgeActive]);
 
   return (
     <div className="relative w-full">

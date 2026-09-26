@@ -95,7 +95,7 @@ export const App: React.FC = () => {
       {/* Low-profile status footer */}
       <footer className="border-t border-[#1a1d26] py-2 px-6 text-[11px] font-mono text-neutral-500 flex justify-between items-center bg-[#0d0f14]">
         <div>Solana Position: Kamino Vault #4829 · Primary Venue: Hyperliquid L1 (SOL-PERP)</div>
-        <div>Deterministic Risk Engine v0.1.0 · Zero-Custody Trading Key</div>
+        <div>Deterministic Risk Engine v0.1.0 · Trading-Only Permission (Zero-Custody)</div>
       </footer>
     </div>
   );

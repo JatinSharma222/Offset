@@ -1,6 +1,7 @@
 import React from 'react';
 import { RiskBadge } from './RiskBadge';
 import { RiskLevel } from '../theme/risk';
+import { GlossaryLabel } from './GlossaryLabel';
 
 interface RiskEnginePanelProps {
   price: number;
@@ -34,39 +35,39 @@ export const RiskEnginePanel: React.FC<RiskEnginePanelProps> = ({
 
       <div className="mt-4 space-y-3 font-mono text-sm">
         <div className="flex justify-between items-center text-neutral-400">
-          <span>SOL Price</span>
+          <span>SOL price</span>
           <span className="text-white font-bold tabular-nums">${price.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between items-center text-neutral-400">
-          <span>Liquidation Price</span>
+          <GlossaryLabel term="liquidationPrice" />
           <span className="text-red-400 font-bold tabular-nums">${liquidationPrice.toFixed(2)}</span>
         </div>
 
         <div className="flex justify-between items-center text-neutral-400">
-          <span>Distance to Liquidation</span>
+          <GlossaryLabel term="liquidationDistance" />
           <span className="text-amber-400 font-bold tabular-nums">{(distance * 100).toFixed(2)}%</span>
         </div>
 
         <div className="flex justify-between items-center text-neutral-400">
-          <span>Health Factor</span>
+          <GlossaryLabel term="healthFactor" />
           <span className="text-emerald-400 font-bold tabular-nums">{healthFactor.toFixed(3)}</span>
         </div>
 
         <div className="pt-3 border-t border-[#232733] flex justify-between items-center text-neutral-400">
-          <span>Target Hedge</span>
+          <GlossaryLabel term="targetHedge" />
           <span className="text-white font-bold tabular-nums">${(recommendedHedge / 1_000_000).toFixed(2)}M</span>
         </div>
 
         <div className="flex justify-between items-center text-neutral-400">
-          <span>Current Active Hedge</span>
+          <GlossaryLabel term="filledNotional" />
           <span className="text-indigo-400 font-bold tabular-nums">${(currentHedge / 1_000_000).toFixed(2)}M</span>
         </div>
 
         {isUnderhedged && (
           <div className="mt-2 p-2 bg-amber-950/30 border border-amber-800/40 rounded text-xs text-amber-400 font-sans flex items-center gap-2">
             <span>⚠</span>
-            <span>Position underhedged: Adjustment queued for next tick</span>
+            <span>Protection needs adjustment: Protective order queued for next price update</span>
           </div>
         )}
       </div>

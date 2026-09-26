@@ -1,4 +1,5 @@
 import React from 'react';
+import { GlossaryLabel } from './GlossaryLabel';
 
 interface ImpactPanelProps {
   lossAvoided: number;
@@ -21,10 +22,10 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
     <div className="bg-[#12141a] border border-[#232733] rounded-lg p-6">
       <div className="text-center mb-6">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-          Protection Impact Verification
+          Protection impact verification
         </h3>
         <p className="text-xs text-neutral-400 mt-1 font-mono">
-          Net capital preserved after deducting exchange slippage and funding carry
+          Net capital preserved after deducting the cost of acting fast (slippage) and carrying protection
         </p>
       </div>
 
@@ -34,7 +35,7 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
             ${(lossAvoided / 1_000_000).toFixed(2)}M
           </div>
           <div className="text-[11px] uppercase tracking-wider text-emerald-300/80 mt-1 font-sans font-semibold">
-            Net Capital Preserved
+            Net capital preserved
           </div>
         </div>
 
@@ -43,7 +44,7 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
             {damageOffsetPct > 100 ? '100%+' : `${damageOffsetPct.toFixed(0)}%`}
           </div>
           <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
-            Financial Damage Offset
+            Financial damage offset
           </div>
         </div>
 
@@ -55,8 +56,8 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
           </div>
           <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
             {badDebtReductionPct === 100
-              ? 'Penalties Covered ($0 Bad Debt)'
-              : `Penalties Covered (${badDebtReductionPct.toFixed(0)}% Bad Debt Red.)`}
+              ? 'Penalties covered ($0 bad debt)'
+              : `Penalties covered (${badDebtReductionPct.toFixed(0)}% bad debt red.)`}
           </div>
         </div>
 
@@ -65,7 +66,12 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
             ${(hedgeCost / 1_000).toFixed(1)}K
           </div>
           <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
-            Total Hedge Friction
+            <GlossaryLabel
+              term="slippage"
+              plainText="Cost of acting fast & carry"
+              technicalText="Slippage and funding carry"
+              glossText="Combined trading slippage and borrow funding incurred while keeping the protective hedge live."
+            />
           </div>
         </div>
       </div>

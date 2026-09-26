@@ -1,10 +1,10 @@
 import React from 'react';
 
 interface StatCardProps {
-  label: string;
+  label: string | React.ReactNode;
   value: string | React.ReactNode;
-  subtitle?: string;
-  change?: string;
+  subtitle?: string | React.ReactNode;
+  change?: string | React.ReactNode;
   badge?: React.ReactNode;
 }
 
