@@ -18,6 +18,7 @@ import { PriceChart } from '../components/PriceChart';
 import { RiskEnginePanel } from '../components/RiskEnginePanel';
 import { EventFeed, EventItem } from '../components/EventFeed';
 import { GlossaryLabel } from '../components/GlossaryLabel';
+import { CollateralHeroVisual } from '../components/CollateralHeroVisual';
 import { RiskLevel } from '../theme/risk';
 import {
   Zap,
@@ -28,7 +29,6 @@ import {
   ChevronDown,
   ChevronUp,
   Shield,
-  Layers,
 } from 'lucide-react';
 
 interface ChartPoint {
@@ -455,50 +455,12 @@ export const DashboardScreen: React.FC = () => {
 
       {/* TOP-TO-BOTTOM NARRATIVE: HERO NARRATIVE SECTION */}
       <section className="bg-surface-1 border border-surface-2 rounded-xl p-8 space-y-6 text-left">
-        {/* Hero Visual Slot (collateral metaphor, prepared for three.js in Phase 4) */}
-        <div className="w-full bg-surface-0 border border-surface-2 rounded-lg p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[160px]">
-          <div className="absolute inset-0 bg-gradient-to-b from-brand/5 via-transparent to-transparent pointer-events-none" />
-
-          {/* Static Visual Representation of the Collateral & Catching Plane Metaphor */}
-          <div className="w-full max-w-md flex flex-col items-center gap-3">
-            <div className="flex items-center justify-between w-full text-xs font-mono text-text-muted px-2">
-              <span className="flex items-center gap-1.5 text-text-primary font-semibold">
-                <Layers className="w-4 h-4 text-brand" />
-                Collateral Form ({obligationData?.obligation?.lendingMarket || 'Kamino Vault'})
-              </span>
-              <RiskBadge level={riskLevel} />
-            </div>
-
-            {/* Visual Gap Indicator */}
-            <div className="w-full h-16 bg-surface-1 border border-surface-2 rounded relative flex items-center justify-center p-2">
-              <div
-                className="absolute left-4 right-4 h-1.5 rounded transition-all duration-500"
-                style={{
-                  backgroundColor: riskLevel === 'HEALTHY' ? '#4ADE80' : riskLevel === 'WARNING' ? '#F5B942' : riskLevel === 'DANGER' ? '#F5793A' : '#F0473E',
-                  bottom: `${Math.min(Math.max(distance * 100, 15), 75)}%`,
-                }}
-              />
-              {currentHedge > 0 && (
-                <div
-                  className="absolute left-2 right-2 h-1 bg-brand rounded shadow-[0_0_8px_rgba(62,124,177,0.5)] transition-all duration-500"
-                  style={{
-                    bottom: `${Math.max(Math.min(distance * 100 - 8, 55), 10)}%`,
-                  }}
-                  title="Protective Hedge Plane"
-                />
-              )}
-              <span className="text-[11px] font-mono text-text-muted z-10 bg-surface-1/90 px-2.5 py-0.5 rounded border border-surface-2">
-                Distance to trouble: <span className="font-bold text-text-primary">{distancePct}%</span>
-                {currentHedge > 0 && <span className="text-brand font-semibold"> · Hedge cushion active</span>}
-              </span>
-            </div>
-
-            <div className="w-full flex justify-between text-[11px] font-mono text-text-muted px-2 border-t border-surface-2 pt-1">
-              <span>SOL Price: ${price.toFixed(2)}</span>
-              <span className="text-risk-critical">The danger line: ${liqPrice.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
+        {/* 3D Hero Scene with proper materials, lighting, rim light, hedge catching plane, and SVG fallback */}
+        <CollateralHeroVisual
+          liquidationDistance={distance}
+          hedgeActive={currentHedge > 0}
+          riskLevel={riskLevel}
+        />
 
         {/* Narrative Headline in Fraunces & Plain Explanation */}
         <div className="space-y-3">
