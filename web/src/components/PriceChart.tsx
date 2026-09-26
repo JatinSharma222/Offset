@@ -38,27 +38,27 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#94a3b8',
+        textColor: '#9C9284', // text-muted token
       },
       grid: {
-        vertLines: { color: '#1e293b' },
-        horzLines: { color: '#1e293b' },
+        vertLines: { color: '#28241D' }, // surface-2 token
+        horzLines: { color: '#28241D' }, // surface-2 token
       },
       timeScale: {
         timeVisible: true,
-        borderColor: '#334155',
+        borderColor: '#28241D',
       },
       rightPriceScale: {
-        borderColor: '#334155',
+        borderColor: '#28241D',
       },
       width: chartContainerRef.current.clientWidth,
       height: 350,
     });
 
     const areaSeries = chart.addAreaSeries({
-      lineColor: '#60a5fa',
-      topColor: 'rgba(96, 165, 250, 0.25)',
-      bottomColor: 'rgba(96, 165, 250, 0.02)',
+      lineColor: '#3E7CB1', // brand token
+      topColor: 'rgba(62, 124, 177, 0.28)',
+      bottomColor: 'rgba(62, 124, 177, 0.02)',
       lineWidth: 2,
     });
 
@@ -104,7 +104,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         {
           time: latestPoint.time,
           position: 'aboveBar',
-          color: '#38bdf8',
+          color: '#3E7CB1', // brand token
           shape: 'arrowDown',
           text: 'protection activated',
         },
@@ -130,7 +130,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (liquidationPrice) {
       const line = seriesRef.current.createPriceLine({
         price: liquidationPrice,
-        color: '#EF4444',
+        color: '#F0473E', // critical risk token
         lineWidth: 2,
         lineStyle: LineStyle.Solid,
         axisLabelVisible: true,
@@ -142,7 +142,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (criticalPrice) {
       const line = seriesRef.current.createPriceLine({
         price: criticalPrice,
-        color: '#EF4444',
+        color: '#F0473E', // critical risk token
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
         axisLabelVisible: true,
@@ -154,7 +154,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (dangerPrice) {
       const line = seriesRef.current.createPriceLine({
         price: dangerPrice,
-        color: '#F97316',
+        color: '#F5793A', // danger risk token
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
@@ -166,7 +166,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (warningPrice) {
       const line = seriesRef.current.createPriceLine({
         price: warningPrice,
-        color: '#F59E0B',
+        color: '#F5B942', // warning risk token
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,

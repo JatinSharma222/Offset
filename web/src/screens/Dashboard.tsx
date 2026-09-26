@@ -180,19 +180,19 @@ export const DashboardScreen: React.FC = () => {
         return {
           headline: `Your collateral is critically close to trouble — ${distancePct}% away.`,
           subtext: `We've scaled protection to ${hedgeFormatted} to prevent catastrophic liquidation loss.`,
-          colorClass: 'text-red-400',
+          colorClass: 'text-risk-critical',
         };
       case 'DANGER':
         return {
           headline: `Your collateral is in danger — ${distancePct}% away from trouble.`,
           subtext: `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`,
-          colorClass: 'text-orange-400',
+          colorClass: 'text-risk-danger',
         };
       case 'WARNING':
         return {
           headline: `Your collateral is getting risky — ${distancePct}% away from trouble.`,
           subtext: `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`,
-          colorClass: 'text-amber-400',
+          colorClass: 'text-risk-warning',
         };
       case 'HEALTHY':
       default:
@@ -202,7 +202,7 @@ export const DashboardScreen: React.FC = () => {
             currentHedge > 0
               ? `We've opened a ${hedgeFormatted} protective position to soften the impact if prices keep falling.`
               : `No protection needed right now. An automated hedge will open if prices drop near trouble.`,
-          colorClass: 'text-white',
+          colorClass: 'text-text-primary',
         };
     }
   }, [riskLevel, distancePct, currentHedge]);
@@ -334,31 +334,31 @@ export const DashboardScreen: React.FC = () => {
       {/* Top Controls: On-Chain Banner, Stress-Test Toolbar, and Plain/Technical Toggle */}
       <div className="space-y-3">
         {/* On-Chain Status Bar */}
-        <div className="bg-[#12141a] border border-[#232733] rounded-lg px-4 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+        <div className="bg-surface-1 border border-surface-2 rounded-lg px-4 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-1.5 text-risk-healthy font-semibold">
+              <span className="w-2 h-2 rounded-full bg-risk-healthy animate-pulse" />
               ON-CHAIN SOLANA INGESTION
             </div>
-            <span className="text-neutral-500">|</span>
-            <span className="text-neutral-400">
-              Obligation: <span className="text-white">{obligationData?.obligation?.pubkey?.slice(0, 8)}...{obligationData?.obligation?.pubkey?.slice(-4)}</span>
+            <span className="text-surface-2">|</span>
+            <span className="text-text-muted">
+              Obligation: <span className="text-text-primary">{obligationData?.obligation?.pubkey?.slice(0, 8)}...{obligationData?.obligation?.pubkey?.slice(-4)}</span>
             </span>
-            <span className="text-neutral-500">|</span>
-            <span className="text-neutral-400">
-              Market: <span className="text-indigo-400">{obligationData?.obligation?.lendingMarket || 'Kamino Lending Vault'}</span>
+            <span className="text-surface-2">|</span>
+            <span className="text-text-muted">
+              Market: <span className="text-brand">{obligationData?.obligation?.lendingMarket || 'Kamino Lending Vault'}</span>
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-neutral-400">View:</span>
-              <div className="inline-flex rounded border border-[#232733] bg-[#0d0f14] p-0.5">
+              <span className="text-text-muted">View:</span>
+              <div className="inline-flex rounded border border-surface-2 bg-surface-0 p-0.5">
                 <button
                   onClick={() => setShowTechnical(false)}
                   className={`px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider transition-colors ${
                     !showTechnical
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-neutral-400 hover:text-white'
+                      ? 'bg-brand text-white shadow-sm'
+                      : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
                   Plain
@@ -367,8 +367,8 @@ export const DashboardScreen: React.FC = () => {
                   onClick={() => setShowTechnical(true)}
                   className={`px-3 py-1 rounded text-xs font-semibold uppercase tracking-wider transition-colors ${
                     showTechnical
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-neutral-400 hover:text-white'
+                      ? 'bg-brand text-white shadow-sm'
+                      : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
                   Technical
@@ -379,9 +379,9 @@ export const DashboardScreen: React.FC = () => {
         </div>
 
         {/* Market Stress-Test Driver */}
-        <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-          <div className="flex items-center gap-2 text-neutral-300 font-bold">
-            <Zap className="w-4 h-4 text-amber-400" />
+        <div className="bg-surface-1 border border-surface-2 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2 text-text-muted font-bold">
+            <Zap className="w-4 h-4 text-risk-warning" />
             <span>MARKET STRESS-TEST DRIVER:</span>
           </div>
 
@@ -389,7 +389,7 @@ export const DashboardScreen: React.FC = () => {
             <button
               onClick={() => handleShock(10)}
               disabled={shocking}
-              className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-risk-warning border border-amber-500/30 font-semibold transition-colors disabled:opacity-50"
             >
               <TrendingDown className="w-3.5 h-3.5" />
               -10% (Warning)
@@ -398,7 +398,7 @@ export const DashboardScreen: React.FC = () => {
             <button
               onClick={() => handleShock(20)}
               disabled={shocking}
-              className="flex items-center gap-1.5 px-3 py-1 rounded bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border border-orange-500/30 font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-orange-500/10 hover:bg-orange-500/20 text-risk-danger border border-orange-500/30 font-semibold transition-colors disabled:opacity-50"
             >
               <TrendingDown className="w-3.5 h-3.5" />
               -20% (Danger)
@@ -407,7 +407,7 @@ export const DashboardScreen: React.FC = () => {
             <button
               onClick={() => handleShock(35)}
               disabled={shocking}
-              className="flex items-center gap-1.5 px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-risk-critical border border-red-500/30 font-bold transition-colors disabled:opacity-50"
             >
               <TrendingDown className="w-3.5 h-3.5" />
               -35% (Critical Cliff)
@@ -420,12 +420,12 @@ export const DashboardScreen: React.FC = () => {
                 placeholder="$ Price"
                 value={customPriceInput}
                 onChange={(e) => setCustomPriceInput(e.target.value)}
-                className="w-20 px-2 py-1 bg-[#0a0b0e] border border-[#2b3040] rounded text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                className="w-20 px-2 py-1 bg-surface-2 border border-surface-2 rounded text-text-primary text-xs font-mono focus:outline-none focus:border-brand"
               />
               <button
                 type="submit"
                 disabled={settingPrice || !customPriceInput}
-                className="px-2 py-1 rounded bg-[#1f2430] hover:bg-[#2b3245] text-neutral-200 border border-[#333b4d] font-semibold transition-colors disabled:opacity-50"
+                className="px-2 py-1 rounded bg-surface-2 hover:bg-surface-2/80 text-text-primary border border-surface-2 font-semibold transition-colors disabled:opacity-50"
               >
                 Set
               </button>
@@ -434,7 +434,7 @@ export const DashboardScreen: React.FC = () => {
             <button
               onClick={handleResetPrice}
               disabled={resetting}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-neutral-800/60 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/40 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-2/80 text-text-muted hover:text-text-primary border border-surface-2 transition-colors disabled:opacity-50"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reset Oracle
@@ -443,7 +443,7 @@ export const DashboardScreen: React.FC = () => {
             <button
               onClick={handleTriggerRefusal}
               disabled={triggeringRefusal}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-semibold transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold transition-colors disabled:opacity-50"
               title="Deliberately trigger a pre-trade safety limit refusal"
             >
               <ShieldAlert className="w-3.5 h-3.5" />
@@ -454,58 +454,58 @@ export const DashboardScreen: React.FC = () => {
       </div>
 
       {/* TOP-TO-BOTTOM NARRATIVE: HERO NARRATIVE SECTION */}
-      <section className="bg-[#12141a] border border-[#232733] rounded-xl p-8 space-y-6 text-left">
+      <section className="bg-surface-1 border border-surface-2 rounded-xl p-8 space-y-6 text-left">
         {/* Hero Visual Slot (collateral metaphor, prepared for three.js in Phase 4) */}
-        <div className="w-full bg-[#0a0b0e] border border-[#232733] rounded-lg p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[160px]">
-          <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="w-full bg-surface-0 border border-surface-2 rounded-lg p-6 flex flex-col items-center justify-center relative overflow-hidden min-h-[160px]">
+          <div className="absolute inset-0 bg-gradient-to-b from-brand/5 via-transparent to-transparent pointer-events-none" />
 
           {/* Static Visual Representation of the Collateral & Catching Plane Metaphor */}
           <div className="w-full max-w-md flex flex-col items-center gap-3">
-            <div className="flex items-center justify-between w-full text-xs font-mono text-neutral-400 px-2">
-              <span className="flex items-center gap-1.5 text-neutral-300 font-semibold">
-                <Layers className="w-4 h-4 text-indigo-400" />
+            <div className="flex items-center justify-between w-full text-xs font-mono text-text-muted px-2">
+              <span className="flex items-center gap-1.5 text-text-primary font-semibold">
+                <Layers className="w-4 h-4 text-brand" />
                 Collateral Form ({obligationData?.obligation?.lendingMarket || 'Kamino Vault'})
               </span>
               <RiskBadge level={riskLevel} />
             </div>
 
             {/* Visual Gap Indicator */}
-            <div className="w-full h-16 bg-[#12141a] border border-[#232733] rounded relative flex items-center justify-center p-2">
+            <div className="w-full h-16 bg-surface-1 border border-surface-2 rounded relative flex items-center justify-center p-2">
               <div
                 className="absolute left-4 right-4 h-1.5 rounded transition-all duration-500"
                 style={{
-                  backgroundColor: riskLevel === 'HEALTHY' ? '#10B981' : riskLevel === 'WARNING' ? '#F59E0B' : riskLevel === 'DANGER' ? '#F97316' : '#EF4444',
+                  backgroundColor: riskLevel === 'HEALTHY' ? '#4ADE80' : riskLevel === 'WARNING' ? '#F5B942' : riskLevel === 'DANGER' ? '#F5793A' : '#F0473E',
                   bottom: `${Math.min(Math.max(distance * 100, 15), 75)}%`,
                 }}
               />
               {currentHedge > 0 && (
                 <div
-                  className="absolute left-2 right-2 h-1 bg-indigo-500 rounded shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-all duration-500"
+                  className="absolute left-2 right-2 h-1 bg-brand rounded shadow-[0_0_8px_rgba(62,124,177,0.5)] transition-all duration-500"
                   style={{
                     bottom: `${Math.max(Math.min(distance * 100 - 8, 55), 10)}%`,
                   }}
                   title="Protective Hedge Plane"
                 />
               )}
-              <span className="text-[11px] font-mono text-neutral-400 z-10 bg-[#12141a]/90 px-2 py-0.5 rounded">
-                Distance to trouble: <span className="font-bold text-white">{distancePct}%</span>
-                {currentHedge > 0 && <span className="text-indigo-400 font-semibold"> · Hedge cushion active</span>}
+              <span className="text-[11px] font-mono text-text-muted z-10 bg-surface-1/90 px-2.5 py-0.5 rounded border border-surface-2">
+                Distance to trouble: <span className="font-bold text-text-primary">{distancePct}%</span>
+                {currentHedge > 0 && <span className="text-brand font-semibold"> · Hedge cushion active</span>}
               </span>
             </div>
 
-            <div className="w-full flex justify-between text-[11px] font-mono text-neutral-500 px-2 border-t border-[#1e222d] pt-1">
+            <div className="w-full flex justify-between text-[11px] font-mono text-text-muted px-2 border-t border-surface-2 pt-1">
               <span>SOL Price: ${price.toFixed(2)}</span>
-              <span className="text-red-400">The danger line: ${liqPrice.toFixed(2)}</span>
+              <span className="text-risk-critical">The danger line: ${liqPrice.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Narrative Headline & Plain Explanation */}
+        {/* Narrative Headline in Fraunces & Plain Explanation */}
         <div className="space-y-3">
-          <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${narrative.colorClass}`}>
+          <h1 className={`font-fraunces text-3xl sm:text-4xl lg:text-5xl font-normal tracking-tight leading-tight ${narrative.colorClass}`}>
             &ldquo;{narrative.headline}&rdquo;
           </h1>
-          <p className="text-base text-neutral-300 leading-relaxed max-w-3xl">
+          <p className="text-base sm:text-lg text-text-muted leading-relaxed max-w-3xl">
             {narrative.subtext}
           </p>
         </div>
@@ -514,13 +514,13 @@ export const DashboardScreen: React.FC = () => {
         <div className="pt-2">
           <button
             onClick={() => setShowTechnical(!showTechnical)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#181b22] hover:bg-[#232733] border border-[#2b3040] text-sm text-neutral-300 hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-2 hover:bg-surface-2/80 border border-surface-2 text-sm text-text-primary transition-colors"
           >
             <span>{showTechnical ? 'Hide technical detail' : 'See technical detail'}</span>
             {showTechnical ? (
-              <ChevronUp className="w-4 h-4 text-indigo-400" />
+              <ChevronUp className="w-4 h-4 text-brand" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-indigo-400" />
+              <ChevronDown className="w-4 h-4 text-brand" />
             )}
           </button>
         </div>
@@ -528,12 +528,12 @@ export const DashboardScreen: React.FC = () => {
 
       {/* DISCLOSED PROGRESSIVELY: TECHNICAL DETAIL TIER */}
       {showTechnical && (
-        <section className="space-y-6 pt-2 border-t border-[#232733] animate-fadeIn">
+        <section className="space-y-6 pt-2 border-t border-surface-2 animate-fadeIn">
           {/* Scenario-Specific Parameter Customizer */}
-          <div className="bg-[#12141a] border border-[#232733] rounded-lg p-3.5 space-y-3 text-xs font-mono">
+          <div className="bg-surface-1 border border-surface-2 rounded-lg p-3.5 space-y-3 text-xs font-mono">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-neutral-300 font-bold">
-                <Sliders className="w-4 h-4 text-indigo-400" />
+              <div className="flex items-center gap-2 text-text-primary font-bold">
+                <Sliders className="w-4 h-4 text-brand" />
                 <span>SOLANA OBLIGATION SCENARIO:</span>
               </div>
 
@@ -543,8 +543,8 @@ export const DashboardScreen: React.FC = () => {
                   disabled={updatingObligation}
                   className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
                     selectedProtocol === 'kamino'
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                      ? 'bg-brand text-white border-brand shadow-sm'
+                      : 'bg-surface-2 text-text-muted border-surface-2 hover:text-text-primary'
                   }`}
                 >
                   <span>Kamino Vault</span>
@@ -556,8 +556,8 @@ export const DashboardScreen: React.FC = () => {
                   disabled={updatingObligation}
                   className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
                     selectedProtocol === 'solend'
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                      ? 'bg-brand text-white border-brand shadow-sm'
+                      : 'bg-surface-2 text-text-muted border-surface-2 hover:text-text-primary'
                   }`}
                 >
                   <span>Save / Solend</span>
@@ -569,8 +569,8 @@ export const DashboardScreen: React.FC = () => {
                   disabled={updatingObligation}
                   className={`px-3 py-1.5 rounded border transition-colors font-semibold flex items-center gap-1.5 ${
                     selectedProtocol === 'solend-whale'
-                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white hover:border-[#383f52]'
+                      ? 'bg-brand text-white border-brand shadow-sm'
+                      : 'bg-surface-2 text-text-muted border-surface-2 hover:text-text-primary'
                   }`}
                 >
                   <span>Solend Whale</span>
@@ -581,8 +581,8 @@ export const DashboardScreen: React.FC = () => {
                   onClick={() => setShowCustomForm(!showCustomForm)}
                   className={`px-3 py-1.5 rounded border transition-colors font-semibold ${
                     showCustomForm || selectedProtocol === 'custom'
-                      ? 'bg-[#232733] text-indigo-300 border-indigo-500/50'
-                      : 'bg-[#181b22] text-neutral-400 border-[#232733] hover:text-white'
+                      ? 'bg-surface-2 text-brand border-brand/50'
+                      : 'bg-surface-2 text-text-muted border-surface-2 hover:text-text-primary'
                   }`}
                 >
                   Custom Params {showCustomForm ? '▲' : '▼'}
@@ -592,33 +592,33 @@ export const DashboardScreen: React.FC = () => {
 
             {/* Expandable Custom Parameter Form */}
             {showCustomForm && (
-              <form onSubmit={handleApplyCustom} className="pt-3 border-t border-[#1e222d] flex flex-wrap items-center gap-3">
+              <form onSubmit={handleApplyCustom} className="pt-3 border-t border-surface-2 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">Collateral:</span>
+                  <span className="text-text-muted">Collateral:</span>
                   <input
                     type="number"
                     value={customCollateral}
                     onChange={(e) => setCustomCollateral(e.target.value)}
                     placeholder="SOL Amount"
-                    className="w-28 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                    className="w-28 px-2.5 py-1 bg-surface-2 text-text-primary border border-surface-2 rounded focus:outline-none focus:border-brand"
                   />
-                  <span className="text-neutral-500">SOL</span>
+                  <span className="text-text-muted">SOL</span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">Debt:</span>
+                  <span className="text-text-muted">Debt:</span>
                   <input
                     type="number"
                     value={customDebt}
                     onChange={(e) => setCustomDebt(e.target.value)}
                     placeholder="USDC Debt"
-                    className="w-32 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                    className="w-32 px-2.5 py-1 bg-surface-2 text-text-primary border border-surface-2 rounded focus:outline-none focus:border-brand"
                   />
-                  <span className="text-neutral-500">USDC</span>
+                  <span className="text-text-muted">USDC</span>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-neutral-400">LT:</span>
+                  <span className="text-text-muted">LT:</span>
                   <input
                     type="number"
                     step="1"
@@ -626,15 +626,15 @@ export const DashboardScreen: React.FC = () => {
                     max="95"
                     value={customLt}
                     onChange={(e) => setCustomLt(e.target.value)}
-                    className="w-16 px-2.5 py-1 bg-[#181b22] text-white border border-[#2b3040] rounded focus:outline-none focus:border-indigo-400"
+                    className="w-16 px-2.5 py-1 bg-surface-2 text-text-primary border border-surface-2 rounded focus:outline-none focus:border-brand"
                   />
-                  <span className="text-neutral-500">%</span>
+                  <span className="text-text-muted">%</span>
                 </div>
 
                 <button
                   type="submit"
                   disabled={updatingObligation}
-                  className="px-3.5 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded transition-colors"
+                  className="px-3.5 py-1 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white font-semibold rounded transition-colors"
                 >
                   Apply Custom Obligation
                 </button>
@@ -695,17 +695,17 @@ export const DashboardScreen: React.FC = () => {
       )}
 
       {/* MAIN PRICE CHART: SOL COLLATERAL PRICE & THE DANGER LINE */}
-      <section className="bg-[#12141a] border border-[#232733] rounded-lg p-5 space-y-4">
+      <section className="bg-surface-1 border border-surface-2 rounded-xl p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-white">SOL Collateral Price & The Danger Line</h2>
-            <p className="text-xs text-neutral-400 font-mono mt-0.5">
+            <h2 className="text-base font-semibold text-text-primary">SOL Collateral Price & The Danger Line</h2>
+            <p className="text-xs text-text-muted font-mono mt-0.5">
               Automated protection activates before collateral reaches the danger line
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono text-risk-healthy bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-risk-healthy animate-pulse" />
               ORCHESTRATION ACTIVE
             </span>
           </div>
@@ -723,17 +723,17 @@ export const DashboardScreen: React.FC = () => {
       </section>
 
       {/* PERMANENT CUSTODY REASSURANCE BANNER PER 12-UI-REVAMP.MD */}
-      <section className="bg-[#101318] border border-[#232733] rounded-xl p-6 text-center space-y-2">
-        <div className="inline-flex items-center justify-center p-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-1">
+      <section className="bg-surface-1 border border-surface-2 rounded-xl p-6 text-center space-y-2">
+        <div className="inline-flex items-center justify-center p-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-risk-healthy mb-1">
           <Shield className="w-5 h-5" />
         </div>
-        <h3 className="text-base font-bold text-white tracking-tight">
+        <h3 className="text-base font-bold text-text-primary tracking-tight">
           We never hold your funds.
         </h3>
-        <p className="text-sm text-neutral-300 font-medium">
+        <p className="text-sm text-text-primary/90 font-medium">
           We&apos;re only ever allowed to trade — not withdraw.
         </p>
-        <p className="text-xs text-neutral-500 max-w-xl mx-auto leading-relaxed pt-1">
+        <p className="text-xs text-text-muted max-w-xl mx-auto leading-relaxed pt-1">
           Your collateral remains secured in Kamino/Solend. Offset operates strictly via restricted delegated trading keys on Hyperliquid L1, making capital withdrawal structurally impossible.
         </p>
       </section>

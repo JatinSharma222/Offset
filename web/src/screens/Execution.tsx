@@ -157,28 +157,28 @@ export const ExecutionScreen: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-end pb-2 border-b border-[#232733]">
+      <div className="flex justify-between items-end pb-3 border-b border-surface-2">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight">Execution Audit Log</h2>
-          <p className="text-xs text-neutral-400 font-mono mt-1">
+          <h2 className="text-lg font-bold text-text-primary tracking-tight">Execution Audit Log</h2>
+          <p className="text-xs text-text-muted font-mono mt-1">
             Complete record of trade attempts on Hyperliquid. Click any row to inspect book depth evidence.
           </p>
         </div>
-        <div className="text-xs font-mono text-neutral-400">
-          Total orders: <span className="text-white font-bold">{executions.length}</span> · Fill rate:{' '}
-          <span className="text-emerald-400 font-bold">{fillRate}%</span>
+        <div className="text-xs font-mono text-text-muted">
+          Total orders: <span className="text-text-primary font-bold">{executions.length}</span> · Fill rate:{' '}
+          <span className="text-risk-healthy font-bold">{fillRate}%</span>
         </div>
       </div>
 
       {/* Plain language introductory sentence per 12-UI-REVAMP.md */}
-      <div className="px-4 py-3 bg-[#12141a] border border-[#232733] rounded-lg text-sm text-neutral-300">
+      <div className="px-4 py-3 bg-surface-1 border border-surface-2 rounded-lg text-sm text-text-primary/90">
         Every time the system adjusted its hedge, here&apos;s exactly what happened — including when it decided not to.
       </div>
 
       <ExecutionTable executions={executions} />
 
-      <div className="p-4 bg-[#12141a] border border-[#232733] rounded-lg text-xs text-neutral-400 leading-relaxed">
-        <span className="text-white font-semibold">Pre-Trade Safety Guarantee:</span> Every order strictly undergoes
+      <div className="p-4 bg-surface-1 border border-surface-2 rounded-lg text-xs text-text-muted leading-relaxed">
+        <span className="text-text-primary font-semibold">Pre-Trade Safety Guarantee:</span> Every order strictly undergoes
         margin headroom verification, price staleness check (&lt;30s), maximum single clip constraints, and cost of acting fast
         (slippage) tolerance boundaries before transmission to the Hyperliquid DEX.
       </div>

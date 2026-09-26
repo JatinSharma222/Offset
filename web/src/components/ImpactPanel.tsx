@@ -19,53 +19,54 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
   hedgeCost,
 }) => {
   return (
-    <div className="bg-[#12141a] border border-[#232733] rounded-lg p-6">
+    <div className="bg-surface-1 border border-surface-2 rounded-xl p-6">
       <div className="text-center mb-6">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-risk-healthy">
           Protection impact verification
         </h3>
-        <p className="text-xs text-neutral-400 mt-1 font-mono">
+        <p className="text-xs text-text-muted mt-1 font-mono">
           Net capital preserved after deducting the cost of acting fast (slippage) and carrying protection
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-        <div className="bg-[#0a0b0e] border border-emerald-500/30 p-4 rounded-lg">
-          <div className="text-3xl font-bold font-mono text-emerald-400 tabular-nums">
+        {/* Hero Number statement moment in Fraunces */}
+        <div className="bg-surface-0 border border-emerald-500/30 p-5 rounded-lg">
+          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-risk-healthy tabular-nums">
             ${(lossAvoided / 1_000_000).toFixed(2)}M
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-emerald-300/80 mt-1 font-sans font-semibold">
+          <div className="text-[11px] uppercase tracking-wider text-risk-healthy/90 mt-1 font-sans font-semibold">
             Net capital preserved
           </div>
         </div>
 
-        <div className="bg-[#0a0b0e] border border-[#232733] p-4 rounded-lg">
-          <div className="text-3xl font-bold font-mono text-white tabular-nums">
+        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
+          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-text-primary tabular-nums">
             {damageOffsetPct > 100 ? '100%+' : `${damageOffsetPct.toFixed(0)}%`}
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
+          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
             Financial damage offset
           </div>
         </div>
 
-        <div className="bg-[#0a0b0e] border border-[#232733] p-4 rounded-lg">
-          <div className="text-3xl font-bold font-mono text-white tabular-nums">
+        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
+          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-text-primary tabular-nums">
             {onChainLiquidationsAbsorbed > 0
               ? `${onChainLiquidationsAbsorbed} Covered`
               : `${liquidationsPrevented} Prevented`}
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
+          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
             {badDebtReductionPct === 100
               ? 'Penalties covered ($0 bad debt)'
               : `Penalties covered (${badDebtReductionPct.toFixed(0)}% bad debt red.)`}
           </div>
         </div>
 
-        <div className="bg-[#0a0b0e] border border-[#232733] p-4 rounded-lg">
-          <div className="text-3xl font-bold font-mono text-amber-400 tabular-nums">
+        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
+          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-risk-warning tabular-nums">
             ${(hedgeCost / 1_000).toFixed(1)}K
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-neutral-400 mt-1 font-sans font-medium">
+          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
             <GlossaryLabel
               term="slippage"
               plainText="Cost of acting fast & carry"
@@ -76,8 +77,8 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-[#1a1d26] text-center">
-        <p className="text-[11px] font-mono text-neutral-500">
+      <div className="mt-4 pt-3 border-t border-surface-2/60 text-center">
+        <p className="text-[11px] font-mono text-text-muted">
           Note: Offset does not alter on-chain smart contract liquidation code. It executes off-chain perp hedges on Hyperliquid to financially absorb losses and keep protocols whole.
         </p>
       </div>

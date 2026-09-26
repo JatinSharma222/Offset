@@ -110,26 +110,26 @@ export const GlossaryLabel: React.FC<GlossaryLabelProps> = ({
       aria-label={tooltipTitle}
     >
       <span
-        className={`border-b border-dotted border-neutral-400/60 group-hover:border-neutral-200 transition-colors ${textClassName}`}
+        className={`border-b border-dotted border-text-muted/60 group-hover:border-text-primary transition-colors ${textClassName}`}
       >
         {plain}
       </span>
 
       {showIcon && (
-        <span className="text-[10px] text-neutral-400 opacity-70 group-hover:opacity-100">ⓘ</span>
+        <span className="text-[10px] text-text-muted opacity-70 group-hover:opacity-100">ⓘ</span>
       )}
 
       {/* Floating Gloss Popover */}
       {isOpen && (
         <span
-          className="absolute bottom-full left-0 mb-2 z-50 w-64 p-2.5 bg-[#181b22] text-[#e1e4ea] border border-[#333b4d] rounded shadow-xl text-left font-sans text-xs normal-case tracking-normal animate-fadeIn pointer-events-none"
+          className="absolute bottom-full left-0 mb-2 z-50 w-64 p-3 bg-surface-2 text-text-primary border border-surface-2 shadow-2xl rounded text-left font-sans text-xs normal-case tracking-normal animate-fadeIn pointer-events-none"
           style={{ minWidth: '220px' }}
         >
-          <span className="block font-semibold text-indigo-300 text-[11px] uppercase tracking-wider mb-1">
+          <span className="block font-semibold text-brand text-[11px] uppercase tracking-wider mb-1">
             Technical: {technical}
           </span>
-          {gloss && <span className="block text-neutral-300 text-[11px] leading-relaxed">{gloss}</span>}
-          <span className="block text-[10px] text-neutral-500 mt-1.5 font-mono">
+          {gloss && <span className="block text-text-muted text-[11px] leading-relaxed">{gloss}</span>}
+          <span className="block text-[10px] text-text-muted/60 mt-2 font-mono">
             Click / tap to dismiss
           </span>
         </span>

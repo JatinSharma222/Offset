@@ -4,13 +4,19 @@
 
 @layer base {
   body {
-    background-color: #0a0b0e;
-    color: #e1e4ea;
+    background-color: #15130F;
+    color: #F3EFE7;
+    font-family: 'Public Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-feature-settings: "tnum" on, "cv01" on, "cv02" on;
   }
 }
 
-/* Tabular figures for numbers */
+/* Tabular figures for dense financial numbers */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Fraunces for hero statement numbers and narrative headlines */
+.font-fraunces {
+  font-family: 'Fraunces', Georgia, serif;
 }

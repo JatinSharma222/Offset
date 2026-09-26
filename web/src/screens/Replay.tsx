@@ -149,16 +149,16 @@ export const ReplayScreen: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header & Scenario Selection */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-[#232733] gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-surface-2 gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white tracking-tight">
+            <h2 className="text-xl font-bold text-text-primary tracking-tight">
               Historical Crash Replay
             </h2>
             <select
               value={selectedScenarioId}
               onChange={(e) => handleSelectScenario(e.target.value)}
-              className="px-3 py-1 bg-[#151922] text-indigo-400 border border-indigo-500/30 rounded text-xs font-mono focus:outline-none focus:border-indigo-400"
+              className="px-3 py-1.5 bg-surface-2 text-text-primary border border-surface-2 rounded text-xs font-mono focus:outline-none focus:border-brand"
             >
               {scenariosData?.scenarios?.map((s: any) => (
                 <option key={s.id} value={s.id}>
@@ -173,18 +173,18 @@ export const ReplayScreen: React.FC = () => {
               )}
             </select>
           </div>
-          <p className="text-xs text-neutral-400 font-mono mt-1">
+          <p className="text-xs text-text-muted font-mono mt-1">
             {replay?.sourceNote ||
               'Provenance: Reconstructed from Solend on-chain reserve config (5.7M SOL, $108M USDC debt); hourly SOL price feed.'}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Play / Pause */}
+          {/* Play / Pause with brand accent */}
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             disabled={replayLoading || ticks.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold rounded transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-brand hover:bg-brand-hover disabled:opacity-50 text-white text-xs font-semibold rounded transition-colors shadow-sm"
           >
             {isPlaying ? (
               <>
@@ -204,7 +204,7 @@ export const ReplayScreen: React.FC = () => {
               setCurrentStepIndex((prev) => Math.max(prev - 1, 0));
             }}
             disabled={currentStepIndex <= 0}
-            className="p-1.5 bg-[#181b22] hover:bg-[#232733] disabled:opacity-30 text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            className="p-2 bg-surface-2 hover:bg-surface-2/80 disabled:opacity-30 text-text-muted hover:text-text-primary text-xs rounded border border-surface-2 transition-colors"
             title="Previous Step"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -216,20 +216,20 @@ export const ReplayScreen: React.FC = () => {
               setCurrentStepIndex((prev) => Math.min(prev + 1, ticks.length - 1));
             }}
             disabled={ticks.length === 0 || currentStepIndex >= ticks.length - 1}
-            className="p-1.5 bg-[#181b22] hover:bg-[#232733] disabled:opacity-30 text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            className="p-2 bg-surface-2 hover:bg-surface-2/80 disabled:opacity-30 text-text-muted hover:text-text-primary text-xs rounded border border-surface-2 transition-colors"
             title="Next Step"
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
 
           {/* Speed Selector */}
-          <div className="flex items-center bg-[#151922] border border-[#232733] rounded p-0.5">
+          <div className="flex items-center bg-surface-0 border border-surface-2 rounded p-0.5">
             {[1, 2, 4].map((spd) => (
               <button
                 key={spd}
                 onClick={() => setSpeed(spd)}
-                className={`px-2 py-0.5 text-xs font-mono rounded ${
-                  speed === spd ? 'bg-indigo-600 text-white font-bold' : 'text-neutral-400 hover:text-neutral-200'
+                className={`px-2.5 py-1 text-xs font-mono rounded transition-colors ${
+                  speed === spd ? 'bg-brand text-white font-bold' : 'text-text-muted hover:text-text-primary'
                 }`}
               >
                 {spd}x
@@ -239,7 +239,7 @@ export const ReplayScreen: React.FC = () => {
 
           <button
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-2 hover:bg-surface-2/80 text-text-muted hover:text-text-primary text-xs rounded border border-surface-2 transition-colors"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset
@@ -248,7 +248,7 @@ export const ReplayScreen: React.FC = () => {
           <button
             onClick={handleDownloadCsv}
             disabled={ticks.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#181b22] hover:bg-[#232733] text-neutral-300 text-xs rounded border border-[#232733] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-2 hover:bg-surface-2/80 text-text-muted hover:text-text-primary text-xs rounded border border-surface-2 transition-colors"
             title="Export full replay audit CSV"
           >
             <Download className="w-3.5 h-3.5" />
@@ -259,8 +259,8 @@ export const ReplayScreen: React.FC = () => {
 
       {/* Interactive Timeline Scrubber */}
       {ticks.length > 0 && (
-        <div className="flex items-center gap-4 bg-[#12141a] border border-[#232733] px-4 py-2.5 rounded-lg text-xs font-mono">
-          <span className="text-neutral-400 font-semibold whitespace-nowrap">TIMELINE</span>
+        <div className="flex items-center gap-4 bg-surface-1 border border-surface-2 px-4 py-3 rounded-lg text-xs font-mono">
+          <span className="text-text-muted font-semibold whitespace-nowrap">TIMELINE</span>
           <input
             type="range"
             min={0}
@@ -270,10 +270,10 @@ export const ReplayScreen: React.FC = () => {
               setIsPlaying(false);
               setCurrentStepIndex(parseInt(e.target.value, 10));
             }}
-            className="w-full accent-indigo-500 h-1.5 bg-[#1e2330] rounded-lg cursor-pointer"
+            className="w-full accent-brand h-1.5 bg-surface-2 rounded-lg cursor-pointer"
           />
-          <div className="flex items-center gap-2 whitespace-nowrap text-neutral-400">
-            <span className="text-white font-bold tabular-nums">
+          <div className="flex items-center gap-2 whitespace-nowrap text-text-muted">
+            <span className="text-text-primary font-bold tabular-nums">
               {currentStepIndex + 1}
             </span>
             <span>/</span>
@@ -283,23 +283,23 @@ export const ReplayScreen: React.FC = () => {
       )}
 
       {/* Animation Status HUD */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-[#12141a] border border-[#232733] p-5 rounded-lg">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surface-1 border border-surface-2 p-5 rounded-lg">
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">Simulation time</span>
-          <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
+          <span className="text-xs text-text-muted font-mono uppercase">Simulation time</span>
+          <div className="text-lg font-bold font-mono text-text-primary mt-1 tabular-nums">
             {currentTime}
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">SOL price</span>
-          <div className="text-lg font-bold font-mono text-white mt-1 tabular-nums">
+          <span className="text-xs text-text-muted font-mono uppercase">SOL price</span>
+          <div className="text-lg font-bold font-mono text-text-primary mt-1 tabular-nums">
             ${currentPrice.toFixed(2)}
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">
+          <span className="text-xs text-text-muted font-mono uppercase">
             <GlossaryLabel term="riskLevel" />
           </span>
           <div className="mt-1">
@@ -308,10 +308,10 @@ export const ReplayScreen: React.FC = () => {
         </div>
 
         <div>
-          <span className="text-xs text-neutral-400 font-mono uppercase">
+          <span className="text-xs text-text-muted font-mono uppercase">
             <GlossaryLabel term="targetHedge" />
           </span>
-          <div className="text-lg font-bold font-mono text-indigo-400 mt-1 tabular-nums">
+          <div className="text-lg font-bold font-mono text-brand mt-1 tabular-nums">
             ${(currentHedge / 1_000_000).toFixed(2)}M
           </div>
         </div>
@@ -319,13 +319,13 @@ export const ReplayScreen: React.FC = () => {
 
       {/* Realtime Event Callout Banner */}
       {eventMessage && (
-        <div className="p-4 rounded-lg border bg-[#151922] border-indigo-800/40 flex items-center justify-between">
+        <div className="p-4 rounded-lg border bg-surface-1 border-brand/40 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <AlertTriangle className="w-5 h-5 text-risk-warning" />
             <div>
-              <div className="text-sm font-bold text-white font-mono">{eventMessage}</div>
+              <div className="text-sm font-bold text-text-primary font-mono">{eventMessage}</div>
               {executionFired?.slippageBps && (
-                <div className="text-xs text-emerald-400 font-mono mt-0.5">
+                <div className="text-xs text-risk-healthy font-mono mt-0.5">
                   <GlossaryLabel
                     term="slippage"
                     plainText={`Cost of acting fast: ${executionFired.slippageBps} bps`}
@@ -335,31 +335,31 @@ export const ReplayScreen: React.FC = () => {
               )}
             </div>
           </div>
-          <span className="text-xs font-mono text-neutral-500">
+          <span className="text-xs font-mono text-text-muted">
             Step {currentStepIndex + 1} / {ticks.length || 1}
           </span>
         </div>
       )}
 
       {/* Dynamic Price & Liquidation Trajectory Chart */}
-      <div className="bg-[#12141a] border border-[#232733] rounded-lg p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#232733] mb-4 gap-2">
+      <div className="bg-surface-1 border border-surface-2 rounded-lg p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-surface-2 mb-4 gap-2">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
               Historical price trajectory vs. the danger line
             </h3>
-            <p className="text-xs text-neutral-400 font-mono mt-0.5">
+            <p className="text-xs text-text-muted font-mono mt-0.5">
               Live progression of collateral price decay against the danger line & dynamic hedge triggers
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
             {replayLiqPrice && (
-              <span className="flex items-center gap-1.5 text-red-400">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              <span className="flex items-center gap-1.5 text-risk-critical">
+                <span className="w-2 h-2 rounded-full bg-risk-critical"></span>
                 The danger line: ${replayLiqPrice.toFixed(2)}
               </span>
             )}
-            <span className="text-neutral-500">
+            <span className="text-text-muted">
               Frame {currentStepIndex + 1} / {ticks.length || 1}
             </span>
           </div>
@@ -377,36 +377,36 @@ export const ReplayScreen: React.FC = () => {
       {/* Head-to-Head Comparison Card */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Without Hedge Column */}
-        <div className="bg-[#12141a] border border-red-900/30 rounded-lg p-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#232733]">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-red-400 flex items-center gap-2">
+        <div className="bg-surface-1 border border-risk-critical/30 rounded-lg p-5">
+          <div className="flex items-center justify-between pb-3 border-b border-surface-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-risk-critical flex items-center gap-2">
               <span>✕</span> Unprotected (Historical Baseline)
             </h3>
-            <span className="text-xs font-mono text-neutral-500">Kamino/Solend default</span>
+            <span className="text-xs font-mono text-text-muted">Kamino/Solend default</span>
           </div>
 
           <div className="mt-4 space-y-3 text-xs font-mono">
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Liquidation Penalties Seized</span>
-              <span className="text-red-400 font-bold tabular-nums">
+              <span className="text-risk-critical font-bold tabular-nums">
                 -${replay ? (parseFloat(replay.withoutHedge.liquidationPenalties) / 1_000_000).toFixed(2) : '8.40'}M
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Protocol Bad Debt Accumulated</span>
-              <span className="text-red-400 font-bold tabular-nums">
+              <span className="text-risk-critical font-bold tabular-nums">
                 -${replay ? (parseFloat(replay.withoutHedge.badDebt) / 1_000_000).toFixed(2) : '16.20'}M
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Protection P&L Offset</span>
-              <span className="text-neutral-500 tabular-nums">$0.00</span>
+              <span className="text-text-muted/60 tabular-nums">$0.00</span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Carry and cost of acting fast</span>
-              <span className="text-neutral-500 tabular-nums">$0.00</span>
+              <span className="text-text-muted/60 tabular-nums">$0.00</span>
             </div>
-            <div className="flex justify-between pt-2 text-sm font-bold text-red-400">
+            <div className="flex justify-between pt-2.5 text-sm font-bold text-risk-critical">
               <span>Net Catastrophic Loss</span>
               <span className="tabular-nums">
                 -${replay ? (parseFloat(replay.withoutHedge.netLoss) / 1_000_000).toFixed(2) : '24.60'}M
@@ -416,45 +416,45 @@ export const ReplayScreen: React.FC = () => {
         </div>
 
         {/* With Offset Column */}
-        <div className="bg-[#12141a] border border-emerald-900/30 rounded-lg p-5">
-          <div className="flex items-center justify-between pb-3 border-b border-[#232733]">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" /> With Offset Infrastructure
+        <div className="bg-surface-1 border border-risk-healthy/30 rounded-lg p-5">
+          <div className="flex items-center justify-between pb-3 border-b border-surface-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-risk-healthy flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-risk-healthy" /> With Offset Infrastructure
             </h3>
-            <span className="text-xs font-mono text-emerald-400/80 font-semibold">Autonomous Defense</span>
+            <span className="text-xs font-mono text-risk-healthy font-semibold">Autonomous Defense</span>
           </div>
 
           <div className="mt-4 space-y-3 text-xs font-mono">
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Liquidation Penalties Seized</span>
-              <span className="text-neutral-300 font-bold tabular-nums">
+              <span className="text-text-primary/90 font-bold tabular-nums">
                 -${replay ? (parseFloat(replay.withHedge.liquidationPenalties) / 1_000_000).toFixed(2) : '1.80'}M
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Protocol Bad Debt Accumulated</span>
-              <span className="text-emerald-400 font-bold tabular-nums">
+              <span className="text-risk-healthy font-bold tabular-nums">
                 ${replay ? (parseFloat(replay.withHedge.badDebt) / 1_000_000).toFixed(2) : '0.00'}M
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <span>Protection P&L Offset (Hyperliquid short)</span>
-              <span className="text-emerald-400 font-bold tabular-nums">
+              <span className="text-risk-healthy font-bold tabular-nums">
                 +${replay ? (parseFloat(replay.withHedge.hedgePnl) / 1_000_000).toFixed(2) : '22.50'}M
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-[#1a1d26] text-neutral-400">
+            <div className="flex justify-between py-1.5 border-b border-surface-2/60 text-text-muted">
               <GlossaryLabel
                 term="slippage"
                 plainText="Carry & cost of acting fast"
                 technicalText="Funding + Slippage Incurred"
                 glossText="Combined funding fee carry and execution slippage from adjusting the hedge."
               />
-              <span className="text-amber-400 tabular-nums">
+              <span className="text-risk-warning tabular-nums">
                 -${replay ? ((parseFloat(replay.withHedge.fundingCost) + parseFloat(replay.withHedge.slippageCost)) / 1_000).toFixed(1) : '185.4'}K
               </span>
             </div>
-            <div className="flex justify-between pt-2 text-sm font-bold text-emerald-400">
+            <div className="flex justify-between pt-2.5 text-sm font-bold text-risk-healthy">
               <span>Net Preserved Outcome</span>
               <span className="tabular-nums">
                 -${replay ? (parseFloat(replay.withHedge.netLoss) / 1_000_000).toFixed(2) : '4.10'}M

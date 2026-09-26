@@ -16,20 +16,20 @@ export const StatCard: React.FC<StatCardProps> = ({
   badge,
 }) => {
   return (
-    <div className="bg-[#12141a] border border-[#232733] p-4 rounded-lg flex flex-col justify-between">
+    <div className="bg-surface-1 border border-surface-2 p-5 rounded-lg flex flex-col justify-between shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs uppercase font-medium tracking-wider text-neutral-400">
+        <span className="text-xs uppercase font-medium tracking-wider text-text-muted">
           {label}
         </span>
         {badge}
       </div>
-      <div className="text-2xl font-bold font-mono tracking-tight text-white tabular-nums">
+      <div className="text-2xl font-bold font-mono tracking-tight text-text-primary tabular-nums">
         {value}
       </div>
       {(subtitle || change) && (
-        <div className="mt-2 flex items-center justify-between text-xs text-neutral-400 font-mono">
+        <div className="mt-2.5 flex items-center justify-between text-xs text-text-muted font-mono">
           {subtitle && <span>{subtitle}</span>}
-          {change && <span className="text-neutral-300">{change}</span>}
+          {change && <span className="text-text-primary/90">{change}</span>}
         </div>
       )}
     </div>
