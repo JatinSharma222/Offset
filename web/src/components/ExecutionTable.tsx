@@ -11,6 +11,8 @@ export interface ExecutionRow {
   target: number;
   filled: number;
   slippageBps?: number;
+  basisBps?: number;
+  latencyMs?: number;
   residual: number;
   status: 'Filled' | 'PartiallyFilled' | 'Refused' | 'Failed';
   statusNote?: string;
@@ -43,6 +45,8 @@ export const ExecutionTable: React.FC<ExecutionTableProps> = ({ executions }) =>
             <th className="py-3 px-4 text-right">
               <GlossaryLabel term="slippage" />
             </th>
+            <th className="py-3 px-4 text-right">Basis</th>
+            <th className="py-3 px-4 text-right">Latency</th>
             <th className="py-3 px-4 text-right">
               <GlossaryLabel term="residualExposure" />
             </th>
@@ -69,6 +73,12 @@ export const ExecutionTable: React.FC<ExecutionTableProps> = ({ executions }) =>
                 <td className="py-3 px-4 text-right text-text-primary/90 tabular-nums">
                   {row.slippageBps !== undefined ? `${(row.slippageBps / 100).toFixed(2)}%` : '—'}
                 </td>
+                <td className="py-3 px-4 text-right text-amber-gold/90 tabular-nums">
+                  {row.basisBps !== undefined ? `${row.basisBps.toFixed(1)} bps` : '—'}
+                </td>
+                <td className="py-3 px-4 text-right text-patina-light tabular-nums">
+                  {row.latencyMs !== undefined ? `${row.latencyMs}ms` : '—'}
+                </td>
                 <td className="py-3 px-4 text-right text-text-muted tabular-nums">
                   ${(row.residual / 1_000).toFixed(1)}K
                 </td>
@@ -88,7 +98,7 @@ export const ExecutionTable: React.FC<ExecutionTableProps> = ({ executions }) =>
               </tr>
               {expandedRow === row.id && row.bookSnapshot && (
                 <tr className="bg-surface-0/90">
-                  <td colSpan={7} className="p-4 border-b border-surface-2">
+                  <td colSpan={9} className="p-4 border-b border-surface-2">
                     <div className="text-xs text-text-muted font-sans mb-2 font-semibold">
                       Decision-time top of book snapshot (proof of execution and cost of acting fast)
                     </div>

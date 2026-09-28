@@ -79,6 +79,12 @@ export const GET_EXECUTIONS = gql`
       residualExposure
       status
       note
+      protocolReferencePrice
+      hyperliquidFillPrice
+      basisBps
+      detectedAt
+      filledAt
+      latencyMs
       bookSnapshot {
         bids {
           price
@@ -138,6 +144,13 @@ export const RUN_REPLAY = gql`
           status
           filledNotional
           slippageBps
+          protocolReferencePrice
+          hyperliquidFillPrice
+          basisBps
+          detectedAt
+          filledAt
+          latencyMs
+          note
         }
         hedgePosition
         hedgePnl
@@ -322,6 +335,12 @@ export const EXECUTION_STREAM = gql`
       residualExposure
       status
       note
+      protocolReferencePrice
+      hyperliquidFillPrice
+      basisBps
+      detectedAt
+      filledAt
+      latencyMs
       bookSnapshot {
         bids {
           price

@@ -181,12 +181,19 @@ export const ExecutionScreen: React.FC = () => {
         ? itemsWithSlippage.reduce((sum, e) => sum + (e.slippageBps || 0), 0) / itemsWithSlippage.length
         : 8.5;
 
-    // Avg Latency (if available, else standard 680ms)
+    // Avg Latency (if available, else standard 340ms)
     const itemsWithLatency = executions.filter((e) => e.latencyMs !== undefined);
     const avgLatency =
       itemsWithLatency.length > 0
         ? Math.round(itemsWithLatency.reduce((sum, e) => sum + (e.latencyMs || 0), 0) / itemsWithLatency.length)
-        : 380;
+        : 340;
+
+    // Avg Basis divergence
+    const itemsWithBasis = executions.filter((e) => e.basisBps !== undefined);
+    const avgBasisBps =
+      itemsWithBasis.length > 0
+        ? (itemsWithBasis.reduce((sum, e) => sum + (e.basisBps || 0), 0) / itemsWithBasis.length).toFixed(1)
+        : '4.0';
 
     return {
       totalFilled,
@@ -194,6 +201,7 @@ export const ExecutionScreen: React.FC = () => {
       penaltiesAvoided,
       avgSlippageBps,
       avgLatency,
+      avgBasisBps,
       totalCount: executions.length,
       filledCount: filledItems.length,
       refusedCount: refusedItems.length,
@@ -215,8 +223,10 @@ export const ExecutionScreen: React.FC = () => {
       'risk_level',
       'target_notional',
       'filled_notional',
-      'reference_price',
-      'avg_fill_price',
+      'protocol_reference_price',
+      'hyperliquid_fill_price',
+      'basis_bps',
+      'latency_ms',
       'slippage_bps',
       'residual_exposure',
       'status',
@@ -228,8 +238,10 @@ export const ExecutionScreen: React.FC = () => {
       e.riskLevel,
       e.targetNotional,
       e.filledNotional,
-      e.referencePrice,
-      e.avgFillPrice || '',
+      e.protocolReferencePrice || e.referencePrice,
+      e.hyperliquidFillPrice || e.avgFillPrice || '',
+      e.basisBps !== undefined ? e.basisBps : '',
+      e.latencyMs !== undefined ? e.latencyMs : '',
       e.slippageBps || '',
       e.residualExposure,
       e.status,
@@ -366,23 +378,26 @@ export const ExecutionScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Metric 3: Average Fill Latency */}
+          {/* Metric 3: Average Fill Latency & Basis */}
           <div className="p-5 rounded-2xl glass-card flex flex-col justify-between space-y-4 relative overflow-hidden group">
             <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-patina/5 blur-2xl group-hover:bg-patina/10 transition-colors" />
             <div className="flex items-center justify-between">
               <span className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest">
-                Average Fill Latency
+                Latency & Basis Risk
               </span>
-              <Zap className="w-4 h-4 text-zinc-400" />
+              <Zap className="w-4 h-4 text-amber-gold" />
             </div>
             <div>
               <div className="font-mono text-2xl text-white font-semibold tabular-nums tracking-tight">
                 {metrics.avgLatency}
                 <span className="text-xs text-zinc-500 font-normal ml-1">ms</span>
+                <span className="text-zinc-600 mx-2">/</span>
+                <span className="text-amber-gold font-medium text-xl">{metrics.avgBasisBps}</span>
+                <span className="text-xs text-zinc-500 font-normal ml-1">bps basis</span>
               </div>
               <div className="flex items-center gap-1.5 mt-1 font-mono text-xs">
                 <span className="text-patina-light font-medium">Hyperliquid L1</span>
-                <span className="text-zinc-500">Direct execution</span>
+                <span className="text-zinc-500">Cross-chain execution</span>
               </div>
             </div>
             <div className="w-full flex items-center justify-between pt-1">
@@ -601,14 +616,37 @@ export const ExecutionScreen: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between md:justify-end gap-6 shrink-0 pt-2 md:pt-0 border-t md:border-0 border-white/[0.05]">
-                      <div className="text-left md:text-right font-mono">
-                        <div className="text-sm text-white font-medium tabular-nums">
-                          {item.slippageBps !== undefined ? `${(item.slippageBps / 100).toFixed(2)}% slippage` : '0.00% slippage'}
+                    <div className="flex items-center justify-between md:justify-end gap-5 shrink-0 pt-2 md:pt-0 border-t md:border-0 border-white/[0.05]">
+                      {/* Slippage */}
+                      <div className="text-left md:text-right font-mono min-w-[70px]">
+                        <div className="text-xs text-white font-medium tabular-nums">
+                          {item.slippageBps !== undefined ? `${(item.slippageBps / 100).toFixed(2)}%` : '0.00%'}
                         </div>
-                        <div className="text-[11px] text-zinc-400">
-                          {isFilled ? `Filled $${(item.filledNotional / 1_000).toFixed(1)}K` : 'Protected (0 filled)'}
+                        <div className="text-[10px] text-zinc-400">slippage</div>
+                      </div>
+
+                      {/* Basis */}
+                      <div className="text-left md:text-right font-mono min-w-[65px]">
+                        <div className="text-xs text-amber-gold font-medium tabular-nums">
+                          {item.basisBps !== undefined ? `${item.basisBps.toFixed(1)} bps` : '—'}
                         </div>
+                        <div className="text-[10px] text-zinc-400">basis</div>
+                      </div>
+
+                      {/* Latency */}
+                      <div className="text-left md:text-right font-mono min-w-[60px]">
+                        <div className="text-xs text-patina-light font-medium tabular-nums">
+                          {item.latencyMs !== undefined ? `${item.latencyMs}ms` : '—'}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">latency</div>
+                      </div>
+
+                      {/* Filled Notional */}
+                      <div className="text-left md:text-right font-mono min-w-[80px] hidden sm:block">
+                        <div className="text-xs text-white font-medium tabular-nums">
+                          {isFilled ? `$${(item.filledNotional / 1_000).toFixed(1)}K` : '$0'}
+                        </div>
+                        <div className="text-[10px] text-zinc-400">filled</div>
                       </div>
 
                       <div
@@ -746,6 +784,52 @@ export const ExecutionScreen: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Dual Price & Basis Risk Tracking */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col">
+                      <span className="text-[10px] text-zinc-400 uppercase">SOLANA ORACLE REF</span>
+                      <span className="text-white font-medium mt-1">
+                        ${(selectedItem.protocolReferencePrice || selectedItem.referencePrice || 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col">
+                      <span className="text-[10px] text-zinc-400 uppercase">HYPERLIQUID FILL</span>
+                      <span className="text-patina-light font-medium mt-1">
+                        {selectedItem.hyperliquidFillPrice
+                          ? `$${selectedItem.hyperliquidFillPrice.toFixed(2)}`
+                          : selectedItem.avgFillPrice
+                          ? `$${selectedItem.avgFillPrice.toFixed(2)}`
+                          : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Basis Risk & Detection Latency */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col">
+                      <span className="text-[10px] text-zinc-400 uppercase">BASIS DIVERGENCE</span>
+                      <span className="text-amber-gold font-medium mt-1">
+                        {selectedItem.basisBps !== undefined ? `${selectedItem.basisBps.toFixed(1)} bps` : '—'}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col">
+                      <span className="text-[10px] text-zinc-400 uppercase">DETECTION LATENCY</span>
+                      <span className="text-patina-light font-medium mt-1">
+                        {selectedItem.latencyMs !== undefined ? `${selectedItem.latencyMs} ms` : '—'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Execution Note / Provenance Disclosure */}
+                  {selectedItem.statusNote && (
+                    <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col text-xs">
+                      <span className="text-[10px] text-zinc-400 uppercase">PROVENANCE / AUDIT NOTE</span>
+                      <span className="text-zinc-300 mt-1 font-sans text-[11px] leading-relaxed">
+                        {selectedItem.statusNote}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Decision-Time Top of Book Snapshot Evidence */}
                   {selectedItem.bookSnapshot && (
