@@ -38,27 +38,28 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#9C9284', // text-muted token
+        textColor: '#9ba0a6',
+        fontFamily: 'JetBrains Mono, monospace',
       },
       grid: {
-        vertLines: { color: '#28241D' }, // surface-2 token
-        horzLines: { color: '#28241D' }, // surface-2 token
+        vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.04)' },
       },
       timeScale: {
         timeVisible: true,
-        borderColor: '#28241D',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
       },
       rightPriceScale: {
-        borderColor: '#28241D',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
       },
       width: chartContainerRef.current.clientWidth,
-      height: 350,
+      height: 370,
     });
 
     const areaSeries = chart.addAreaSeries({
-      lineColor: '#3E7CB1', // brand token
-      topColor: 'rgba(62, 124, 177, 0.28)',
-      bottomColor: 'rgba(62, 124, 177, 0.02)',
+      lineColor: '#ffb873',
+      topColor: 'rgba(255, 184, 115, 0.25)',
+      bottomColor: 'rgba(91, 155, 138, 0.01)',
       lineWidth: 2,
     });
 
@@ -104,7 +105,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         {
           time: latestPoint.time,
           position: 'aboveBar',
-          color: '#3E7CB1', // brand token
+          color: '#5b9b8a', // patina
           shape: 'arrowDown',
           text: 'protection activated',
         },
@@ -126,15 +127,15 @@ export const PriceChart: React.FC<PriceChartProps> = ({
 
     const isPlain = mode === 'plain';
 
-    // The liquidation line: single most important pixel in the product
+    // The liquidation line: single most visually prominent line in the product
     if (liquidationPrice) {
       const line = seriesRef.current.createPriceLine({
         price: liquidationPrice,
-        color: '#F0473E', // critical risk token
-        lineWidth: 2,
+        color: '#e05252', // Bohemian crimson / critical risk
+        lineWidth: 3, // Maximally prominent
         lineStyle: LineStyle.Solid,
         axisLabelVisible: true,
-        title: isPlain ? 'The danger line' : 'Liquidation price',
+        title: isPlain ? 'CRITICAL LIQUIDATION BARRIER' : 'LIQUIDATION PRICE (CLIFF)',
       });
       priceLinesRef.current.push(line);
     }
@@ -142,7 +143,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (criticalPrice) {
       const line = seriesRef.current.createPriceLine({
         price: criticalPrice,
-        color: '#F0473E', // critical risk token
+        color: '#e05252',
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
         axisLabelVisible: true,
@@ -154,11 +155,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (dangerPrice) {
       const line = seriesRef.current.createPriceLine({
         price: dangerPrice,
-        color: '#F5793A', // danger risk token
+        color: '#f5793a',
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
-        title: isPlain ? 'Getting risky' : 'Danger (50% hedge)',
+        title: isPlain ? 'Defense trigger' : 'Danger (50% hedge)',
       });
       priceLinesRef.current.push(line);
     }
@@ -166,11 +167,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
     if (warningPrice) {
       const line = seriesRef.current.createPriceLine({
         price: warningPrice,
-        color: '#F5B942', // warning risk token
+        color: '#ffb873',
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
         axisLabelVisible: true,
-        title: isPlain ? 'Getting risky' : 'Warning (25% hedge)',
+        title: isPlain ? 'Soft warning' : 'Warning (25% hedge)',
       });
       priceLinesRef.current.push(line);
     }

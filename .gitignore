@@ -1,6 +1,9 @@
 context/
 context
 
+design/
+design
+
 # Rust / Cargo
 /target/
 **/*.rs.bk
