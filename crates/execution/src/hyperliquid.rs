@@ -438,10 +438,12 @@ impl Executor for HyperliquidExecutor {
         &self,
         target_notional: Money,
     ) -> Result<ExecutionRecord, ExecutionError> {
+        let detected_at = Utc::now();
         let mut last_target = self.last_target.write().await;
         let mut current_pos = self.current_position.write().await;
         let mut current_units_guard = self.current_units.write().await;
         let ref_price = *self.reference_price.read().await;
+        let protocol_reference_price = ref_price;
         let r_level = *self.risk_level.read().await;
         let dist = *self.liquidation_dist.read().await;
 
@@ -458,7 +460,7 @@ impl Executor for HyperliquidExecutor {
             *last_target = Some(target_notional);
             return Ok(ExecutionRecord {
                 id: Uuid::new_v4(),
-                timestamp: Utc::now(),
+                timestamp: detected_at,
                 risk_level: r_level,
                 liquidation_distance: dist,
                 target_notional,
@@ -471,6 +473,12 @@ impl Executor for HyperliquidExecutor {
                 book_snapshot: None,
                 cloid: None,
                 note: Some("adjust_hedge no-op: target unchanged".to_string()),
+                protocol_reference_price,
+                hyperliquid_fill_price: Some(ref_price),
+                basis_bps: Some(Decimal::ZERO),
+                detected_at,
+                filled_at: Some(detected_at),
+                latency_ms: Some(0),
             });
         }
 
@@ -497,7 +505,7 @@ impl Executor for HyperliquidExecutor {
             tracing::warn!("Pre-trade safety check refused order: {:?}", violation);
             return Ok(ExecutionRecord {
                 id: Uuid::new_v4(),
-                timestamp: Utc::now(),
+                timestamp: detected_at,
                 risk_level: r_level,
                 liquidation_distance: dist,
                 target_notional,
@@ -510,6 +518,12 @@ impl Executor for HyperliquidExecutor {
                 book_snapshot: None,
                 cloid: None,
                 note: Some(format!("Refused by safety check: {:?}", violation)),
+                protocol_reference_price,
+                hyperliquid_fill_price: None,
+                basis_bps: None,
+                detected_at,
+                filled_at: None,
+                latency_ms: None,
             });
         }
 
@@ -660,6 +674,18 @@ impl Executor for HyperliquidExecutor {
                         Some(Decimal::ZERO)
                     };
 
+                    let filled_at = Utc::now();
+                    let latency_ms = (filled_at - detected_at).num_milliseconds().max(1);
+                    let basis_bps = if !protocol_reference_price.is_zero() {
+                        Some(
+                            ((filled_px - protocol_reference_price) / protocol_reference_price
+                                * Decimal::new(10_000, 0))
+                            .round_dp(2),
+                        )
+                    } else {
+                        Some(Decimal::ZERO)
+                    };
+
                     if exec_status == ExecutionStatus::Filled
                         || exec_status == ExecutionStatus::PartiallyFilled
                     {
@@ -670,7 +696,7 @@ impl Executor for HyperliquidExecutor {
 
                     return Ok(ExecutionRecord {
                         id: Uuid::new_v4(),
-                        timestamp: Utc::now(),
+                        timestamp: detected_at,
                         risk_level: r_level,
                         liquidation_distance: dist,
                         target_notional,
@@ -683,13 +709,19 @@ impl Executor for HyperliquidExecutor {
                         book_snapshot: live_book,
                         cloid: Some(cloid_str),
                         note: Some(note),
+                        protocol_reference_price,
+                        hyperliquid_fill_price: Some(filled_px),
+                        basis_bps,
+                        detected_at,
+                        filled_at: Some(filled_at),
+                        latency_ms: Some(latency_ms),
                     });
                 }
                 Ok(ExchangeResponseStatus::Err(err_msg)) => {
                     tracing::warn!("Hyperliquid L1 rejected order: {}", err_msg);
                     return Ok(ExecutionRecord {
                         id: Uuid::new_v4(),
-                        timestamp: Utc::now(),
+                        timestamp: detected_at,
                         risk_level: r_level,
                         liquidation_distance: dist,
                         target_notional,
@@ -702,6 +734,12 @@ impl Executor for HyperliquidExecutor {
                         book_snapshot: live_book,
                         cloid: Some(cloid_str),
                         note: Some(format!("Hyperliquid L1 error: {}", err_msg)),
+                        protocol_reference_price,
+                        hyperliquid_fill_price: None,
+                        basis_bps: None,
+                        detected_at,
+                        filled_at: None,
+                        latency_ms: None,
                     });
                 }
                 Err(e) => {
@@ -719,10 +757,12 @@ impl Executor for HyperliquidExecutor {
         *current_pos = target_notional;
         *last_target = Some(target_notional);
         let cloid_str = format!("sim-hl-{}", Uuid::new_v4().simple());
+        let filled_at = Utc::now();
+        let latency_ms = (filled_at - detected_at).num_milliseconds().max(45);
 
         Ok(ExecutionRecord {
             id: Uuid::new_v4(),
-            timestamp: Utc::now(),
+            timestamp: detected_at,
             risk_level: r_level,
             liquidation_distance: dist,
             target_notional,
@@ -738,6 +778,12 @@ impl Executor for HyperliquidExecutor {
                 "Hyperliquid order adjusted: delta_units {} -> target_units {}",
                 delta_units, target_units
             )),
+            protocol_reference_price,
+            hyperliquid_fill_price: Some(ref_price),
+            basis_bps: Some(Decimal::ZERO),
+            detected_at,
+            filled_at: Some(filled_at),
+            latency_ms: Some(latency_ms),
         })
     }
 

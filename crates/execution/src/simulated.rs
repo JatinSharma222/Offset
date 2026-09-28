@@ -29,6 +29,7 @@ pub struct SimulatedExecutor {
     hourly_funding_rate: Arc<RwLock<Ratio>>,
     risk_level: Arc<RwLock<RiskLevel>>,
     liquidation_dist: Arc<RwLock<Option<Ratio>>>,
+    last_timestamp: Arc<RwLock<Option<chrono::DateTime<chrono::Utc>>>>,
     counter: Arc<AtomicI64>,
 }
 
@@ -50,6 +51,7 @@ impl SimulatedExecutor {
             hourly_funding_rate: Arc::new(RwLock::new(DEFAULT_HOURLY_FUNDING_RATE)),
             risk_level: Arc::new(RwLock::new(RiskLevel::Healthy)),
             liquidation_dist: Arc::new(RwLock::new(None)),
+            last_timestamp: Arc::new(RwLock::new(None)),
             counter: Arc::new(AtomicI64::new(0)),
         }
     }
@@ -82,6 +84,18 @@ impl SimulatedExecutor {
         *self.reference_price.write().await = price;
         *self.risk_level.write().await = level;
         *self.liquidation_dist.write().await = distance;
+    }
+
+    /// Updates market state with custom timestamp for historical replay simulations.
+    pub async fn set_market_state_with_time(
+        &self,
+        price: Money,
+        level: RiskLevel,
+        distance: Option<Ratio>,
+        timestamp: chrono::DateTime<chrono::Utc>,
+    ) {
+        *self.last_timestamp.write().await = Some(timestamp);
+        self.set_market_state(price, level, distance).await;
     }
 
     /// Returns the comprehensive clearinghouse accounting state (P&L, funding carry, slippage).
@@ -141,11 +155,13 @@ impl Executor for SimulatedExecutor {
 
         let delta_units = target_units - current_units;
 
+        let detected_at = self.last_timestamp.read().await.unwrap_or_else(Utc::now);
+
         // Idempotent: no-op if target units equal current units
         if delta_units.is_zero() {
             return Ok(ExecutionRecord {
                 id: Uuid::new_v4(),
-                timestamp: Utc::now(),
+                timestamp: detected_at,
                 risk_level: r_level,
                 liquidation_distance: dist,
                 target_notional,
@@ -160,7 +176,13 @@ impl Executor for SimulatedExecutor {
                     "sim-noop-{}",
                     self.counter.fetch_add(1, Ordering::SeqCst)
                 )),
-                note: Some("Idempotent no-op: target unchanged".to_string()),
+                note: Some("Idempotent no-op: target unchanged (modelled estimate)".to_string()),
+                protocol_reference_price: ref_price,
+                hyperliquid_fill_price: Some(ref_price),
+                basis_bps: Some(Decimal::ZERO),
+                detected_at,
+                filled_at: Some(detected_at),
+                latency_ms: Some(0),
             });
         }
 
@@ -179,13 +201,23 @@ impl Executor for SimulatedExecutor {
             })
             .collect();
 
+        // Model basis divergence and cross-chain execution latency based on risk regime
+        let (latency_ms, basis_bps_val) = match r_level {
+            RiskLevel::Healthy => (195i64, Decimal::new(1, 0)),
+            RiskLevel::Warning => (240i64, Decimal::new(2, 0)),
+            RiskLevel::Danger => (340i64, Decimal::new(4, 0)),
+            RiskLevel::Critical => (380i64, Decimal::new(9, 0)),
+        };
+        let filled_at = detected_at + chrono::Duration::milliseconds(latency_ms);
+        let basis_divergence_rate = basis_bps_val / Decimal::new(10_000, 0);
+
         let slippage_bps = DEFAULT_SLIPPAGE_BPS; // 5 bps
         let slippage_factor = Decimal::new(5, 4); // 0.0005
 
         let fill_price = if delta_units > Decimal::ZERO {
-            // Increasing short (selling into bid): fill price is lower than mid
+            // Increasing short (selling into bid): fill price reflects adverse basis discount + depth slippage
             let order_units = delta_units;
-            let px = ref_price * (Decimal::ONE - slippage_factor);
+            let px = ref_price * (Decimal::ONE - slippage_factor - basis_divergence_rate);
             let slip_cost = order_units * ref_price * slippage_factor;
             *self.cumulative_slippage.write().await += slip_cost;
 
@@ -204,9 +236,9 @@ impl Executor for SimulatedExecutor {
             *units_guard = new_units;
             px
         } else {
-            // Decreasing short (buying from ask): fill price is higher than mid
+            // Decreasing short (buying from ask): fill price reflects basis premium + ask spread
             let closed_units = -delta_units;
-            let px = ref_price * (Decimal::ONE + slippage_factor);
+            let px = ref_price * (Decimal::ONE + slippage_factor + basis_divergence_rate);
             let slip_cost = closed_units * ref_price * slippage_factor;
             *self.cumulative_slippage.write().await += slip_cost;
 
@@ -226,7 +258,7 @@ impl Executor for SimulatedExecutor {
 
         Ok(ExecutionRecord {
             id: Uuid::new_v4(),
-            timestamp: Utc::now(),
+            timestamp: detected_at,
             risk_level: r_level,
             liquidation_distance: dist,
             target_notional,
@@ -241,7 +273,16 @@ impl Executor for SimulatedExecutor {
                 "sim-order-{}",
                 self.counter.fetch_add(1, Ordering::SeqCst)
             )),
-            note: None,
+            note: Some(format!(
+                "Modelled estimate: {}ms latency, {}bps basis (historical L1 block propagation & depth)",
+                latency_ms, basis_bps_val
+            )),
+            protocol_reference_price: ref_price,
+            hyperliquid_fill_price: Some(fill_price),
+            basis_bps: Some(basis_bps_val),
+            detected_at,
+            filled_at: Some(filled_at),
+            latency_ms: Some(latency_ms),
         })
     }
 

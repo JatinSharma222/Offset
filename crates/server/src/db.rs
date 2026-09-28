@@ -163,11 +163,15 @@ pub async fn insert_execution(pool: &PgPool, rec: &ExecutionRecord) -> Result<()
         INSERT INTO execution_records (
             id, timestamp, risk_level, liquidation_distance, target_notional,
             filled_notional, avg_fill_price, reference_price, slippage_bps,
-            residual_exposure, status, note, cloid, book_snapshot
+            residual_exposure, status, note, cloid, book_snapshot,
+            protocol_reference_price, hyperliquid_fill_price, basis_bps,
+            detected_at, filled_at, latency_ms
         ) VALUES (
             $1, $2, $3, $4, $5,
             $6, $7, $8, $9,
-            $10, $11, $12, $13, $14
+            $10, $11, $12, $13, $14,
+            $15, $16, $17,
+            $18, $19, $20
         )
         "#,
     )
@@ -185,6 +189,12 @@ pub async fn insert_execution(pool: &PgPool, rec: &ExecutionRecord) -> Result<()
     .bind(note)
     .bind(rec.cloid.as_deref())
     .bind(book_snapshot_json)
+    .bind(rec.protocol_reference_price)
+    .bind(rec.hyperliquid_fill_price)
+    .bind(rec.basis_bps)
+    .bind(rec.detected_at)
+    .bind(rec.filled_at)
+    .bind(rec.latency_ms.map(|l| l as i32))
     .execute(pool)
     .await?;
 
@@ -200,7 +210,9 @@ pub async fn get_executions(
         SELECT
             id, timestamp, risk_level, liquidation_distance, target_notional,
             filled_notional, avg_fill_price, reference_price, slippage_bps,
-            residual_exposure, status, note, book_snapshot
+            residual_exposure, status, note, book_snapshot,
+            protocol_reference_price, hyperliquid_fill_price, basis_bps,
+            detected_at, filled_at, latency_ms
         FROM execution_records
         ORDER BY timestamp DESC
         LIMIT $1
@@ -228,6 +240,12 @@ fn map_execution_row(row: &PgRow) -> ExecutionRecordGql {
     let status_str: String = row.get("status");
     let note: Option<String> = row.get("note");
     let book_val: Option<serde_json::Value> = row.get("book_snapshot");
+    let protocol_reference_price: Decimal = row.get("protocol_reference_price");
+    let hyperliquid_fill_price: Option<Decimal> = row.get("hyperliquid_fill_price");
+    let basis_bps: Option<Decimal> = row.get("basis_bps");
+    let detected_at: DateTime<Utc> = row.get("detected_at");
+    let filled_at: Option<DateTime<Utc>> = row.get("filled_at");
+    let latency_ms: Option<i32> = row.get("latency_ms");
 
     let book_snapshot = book_val.and_then(|val| {
         let book: execution::BookSnapshot = serde_json::from_value(val).ok()?;
@@ -265,6 +283,12 @@ fn map_execution_row(row: &PgRow) -> ExecutionRecordGql {
         status: parse_execution_status(&status_str),
         note,
         book_snapshot,
+        protocol_reference_price,
+        hyperliquid_fill_price,
+        basis_bps,
+        detected_at,
+        filled_at,
+        latency_ms,
     }
 }
 

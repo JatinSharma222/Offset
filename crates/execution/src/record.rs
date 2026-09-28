@@ -66,6 +66,12 @@ pub struct ExecutionRecord {
     pub book_snapshot: Option<BookSnapshot>,
     pub cloid: Option<String>,
     pub note: Option<String>, // e.g. safety violation reason
+    pub protocol_reference_price: Money, // the price from protocol oracle that triggered decision
+    pub hyperliquid_fill_price: Option<Money>, // price at which Hyperliquid filled
+    pub basis_bps: Option<Money>, // divergence between the two in basis points
+    pub detected_at: DateTime<Utc>, // when the loop observed the threshold crossing
+    pub filled_at: Option<DateTime<Utc>>, // when fill was confirmed
+    pub latency_ms: Option<i64>, // detection-to-fill latency in milliseconds
 }
 
 /// Clearinghouse position, P&L, and carry accounting snapshot from the exchange.

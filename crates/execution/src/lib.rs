@@ -217,4 +217,26 @@ mod tests {
         assert!(ch.unrealized_pnl > Decimal::new(4900, 0));
         assert_eq!(ch.realized_pnl, Decimal::ZERO);
     }
+
+    #[tokio::test]
+    async fn test_basis_risk_and_latency_tracking() {
+        use risk_engine::RiskLevel;
+
+        let sim = SimulatedExecutor::new(Decimal::new(150, 0));
+        let ts = chrono::Utc::now();
+        sim.set_market_state_with_time(Decimal::new(150, 0), RiskLevel::Danger, None, ts).await;
+
+        let rec = sim.adjust_hedge(Decimal::new(25_000, 0)).await.unwrap();
+
+        // Verify basis risk tracking
+        assert_eq!(rec.protocol_reference_price, Decimal::new(150, 0));
+        assert!(rec.hyperliquid_fill_price.is_some());
+        assert_eq!(rec.basis_bps, Some(Decimal::new(4, 0))); // 4 bps for Danger
+
+        // Verify latency tracking
+        assert_eq!(rec.detected_at, ts);
+        assert!(rec.filled_at.is_some());
+        assert_eq!(rec.latency_ms, Some(340)); // 340ms for Danger
+        assert!(rec.note.as_ref().unwrap().contains("Modelled estimate"));
+    }
 }

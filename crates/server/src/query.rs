@@ -224,6 +224,12 @@ impl QueryRoot {
                             })
                             .collect(),
                     }),
+                    protocol_reference_price: e.protocol_reference_price,
+                    hyperliquid_fill_price: e.hyperliquid_fill_price,
+                    basis_bps: e.basis_bps,
+                    detected_at: e.detected_at,
+                    filled_at: e.filled_at,
+                    latency_ms: e.latency_ms.map(|l| l as i32),
                 }),
                 hedge_position: t.hedge_position,
                 hedge_pnl: t.hedge_pnl,

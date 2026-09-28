@@ -135,6 +135,12 @@ fn execution_record_to_gql(record: &ExecutionRecord) -> ExecutionRecordGql {
         status: status_gql,
         note: record.note.clone(),
         book_snapshot: book_snapshot_gql,
+        protocol_reference_price: record.protocol_reference_price,
+        hyperliquid_fill_price: record.hyperliquid_fill_price,
+        basis_bps: record.basis_bps,
+        detected_at: record.detected_at,
+        filled_at: record.filled_at,
+        latency_ms: record.latency_ms.map(|l| l as i32),
     }
 }
 
@@ -280,6 +286,12 @@ async fn execute_hedge_if_needed(
                         book_snapshot: None,
                         cloid: None,
                         note: Some(format!("Execution failed: {}", e)),
+                        protocol_reference_price: sol_price,
+                        hyperliquid_fill_price: None,
+                        basis_bps: None,
+                        detected_at: Utc::now(),
+                        filled_at: None,
+                        latency_ms: None,
                     }
                 }
             }
@@ -301,6 +313,12 @@ async fn execute_hedge_if_needed(
                 book_snapshot: None,
                 cloid: None,
                 note: Some(format!("Safety refusal: {:?}", violation)),
+                protocol_reference_price: sol_price,
+                hyperliquid_fill_price: None,
+                basis_bps: None,
+                detected_at: Utc::now(),
+                filled_at: None,
+                latency_ms: None,
             }
         }
     };

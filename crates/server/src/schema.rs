@@ -86,6 +86,12 @@ pub struct ExecutionRecordGql {
     pub status: ExecutionStatusGql,
     pub note: Option<String>,
     pub book_snapshot: Option<BookSnapshotGql>,
+    pub protocol_reference_price: Decimal,
+    pub hyperliquid_fill_price: Option<Decimal>,
+    pub basis_bps: Option<Decimal>,
+    pub detected_at: DateTime<Utc>,
+    pub filled_at: Option<DateTime<Utc>>,
+    pub latency_ms: Option<i32>,
 }
 
 #[derive(SimpleObject, Clone, Serialize, Deserialize)]

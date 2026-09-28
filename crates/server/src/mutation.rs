@@ -267,9 +267,10 @@ impl MutationRoot {
             ),
         };
 
+        let now = chrono::Utc::now();
         let record = execution::ExecutionRecord {
             id: uuid::Uuid::new_v4(),
-            timestamp: chrono::Utc::now(),
+            timestamp: now,
             risk_level: risk_engine::RiskLevel::Danger,
             liquidation_distance: Some(Decimal::new(82, 3)),
             target_notional,
@@ -282,6 +283,12 @@ impl MutationRoot {
             book_snapshot: Some(book),
             cloid: None,
             note: Some(note.clone()),
+            protocol_reference_price: sol_price,
+            hyperliquid_fill_price: None,
+            basis_bps: None,
+            detected_at: now,
+            filled_at: None,
+            latency_ms: None,
         };
 
         if let Some(pool) = &state.db_pool {
@@ -323,6 +330,12 @@ impl MutationRoot {
             status: ExecutionStatusGql::Refused,
             note: record.note.clone(),
             book_snapshot: book_snapshot_gql,
+            protocol_reference_price: record.protocol_reference_price,
+            hyperliquid_fill_price: record.hyperliquid_fill_price,
+            basis_bps: record.basis_bps,
+            detected_at: record.detected_at,
+            filled_at: record.filled_at,
+            latency_ms: record.latency_ms.map(|l| l as i32),
         };
 
         let _ = state.execution_sender.send(rec_gql.clone());

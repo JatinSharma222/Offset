@@ -360,7 +360,12 @@ async fn run_pass(scenario: &HistoricalScenario, policy_opt: Option<&RiskPolicy>
 
         // 3. Update market state on simulated clearinghouse (marks-to-market & accumulates hourly funding)
         executor
-            .set_market_state(pt.price, snapshot.risk_level, snapshot.liquidation_distance)
+            .set_market_state_with_time(
+                pt.price,
+                snapshot.risk_level,
+                snapshot.liquidation_distance,
+                pt.timestamp,
+            )
             .await;
 
         // 4. Adjust hedge if target changed significantly from current mark-to-market position
