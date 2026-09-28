@@ -19,68 +19,84 @@ export const ImpactPanel: React.FC<ImpactPanelProps> = ({
   hedgeCost,
 }) => {
   return (
-    <div className="bg-surface-1 border border-surface-2 rounded-xl p-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-risk-healthy">
-          Protection impact verification
-        </h3>
-        <p className="text-xs text-text-muted mt-1 font-mono">
-          Net capital preserved after deducting the cost of acting fast (slippage) and carrying protection
-        </p>
+    <div className="glass-card rounded-2xl p-6 md:p-8 space-y-6 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+        <div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-patina-light font-semibold block">
+            Protection Impact Verification
+          </span>
+          <h3 className="font-serif text-2xl text-white font-medium mt-1">
+            Quantified Capital Defense
+          </h3>
+        </div>
+        <span className="font-mono text-xs text-zinc-400">
+          Net capital preserved after deducting slippage &amp; funding carry
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-center">
-        {/* Hero Number statement moment in Fraunces */}
-        <div className="bg-surface-0 border border-emerald-500/30 p-5 rounded-lg">
-          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-risk-healthy tabular-nums">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Hero Number statement moment in Newsreader serif */}
+        <div className="glass-card-subtle p-5 rounded-xl border border-patina/30 relative overflow-hidden">
+          <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full bg-patina/10 blur-xl pointer-events-none" />
+          <span className="font-mono text-[10px] uppercase tracking-wider text-patina-light font-semibold block">
+            Net Capital Preserved
+          </span>
+          <div className="font-serif text-3xl sm:text-4xl text-patina-light font-normal mt-1.5 tabular-nums">
             ${(lossAvoided / 1_000_000).toFixed(2)}M
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-risk-healthy/90 mt-1 font-sans font-semibold">
-            Net capital preserved
+          <div className="text-[11px] text-zinc-400 mt-1 font-mono">
+            Zero collateral seized
           </div>
         </div>
 
-        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
-          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-text-primary tabular-nums">
+        <div className="glass-card-subtle p-5 rounded-xl border border-white/5">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 block">
+            Financial Damage Offset
+          </span>
+          <div className="font-serif text-3xl sm:text-4xl text-white font-normal mt-1.5 tabular-nums">
             {damageOffsetPct > 100 ? '100%+' : `${damageOffsetPct.toFixed(0)}%`}
           </div>
-          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
-            Financial damage offset
+          <div className="text-[11px] text-patina-light mt-1 font-mono">
+            Fully cushioned downside
           </div>
         </div>
 
-        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
-          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-text-primary tabular-nums">
-            {onChainLiquidationsAbsorbed > 0
-              ? `${onChainLiquidationsAbsorbed} Covered`
-              : `${liquidationsPrevented} Prevented`}
-          </div>
-          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
+        <div className="glass-card-subtle p-5 rounded-xl border border-white/5">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 block">
+            Bad Debt Avoided
+          </span>
+          <div className="font-serif text-3xl sm:text-4xl text-white font-normal mt-1.5 tabular-nums">
             {badDebtReductionPct === 100
-              ? 'Penalties covered ($0 bad debt)'
-              : `Penalties covered (${badDebtReductionPct.toFixed(0)}% bad debt red.)`}
+              ? '100%'
+              : `${badDebtReductionPct.toFixed(0)}%`}
+          </div>
+          <div className="text-[11px] text-zinc-400 mt-1 font-mono">
+            {onChainLiquidationsAbsorbed > 0
+              ? `${onChainLiquidationsAbsorbed} liquidations absorbed`
+              : `${liquidationsPrevented} prevented`}
           </div>
         </div>
 
-        <div className="bg-surface-0 border border-surface-2 p-5 rounded-lg">
-          <div className="font-fraunces text-3xl sm:text-4xl font-bold text-risk-warning tabular-nums">
-            ${(hedgeCost / 1_000).toFixed(1)}K
-          </div>
-          <div className="text-[11px] uppercase tracking-wider text-text-muted mt-1 font-sans font-medium">
+        <div className="glass-card-subtle p-5 rounded-xl border border-white/5">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400 block">
             <GlossaryLabel
               term="slippage"
-              plainText="Cost of acting fast & carry"
-              technicalText="Slippage and funding carry"
+              plainText="Cost of Acting Fast & Carry"
+              technicalText="Slippage & Funding Carry"
               glossText="Combined trading slippage and borrow funding incurred while keeping the protective hedge live."
             />
+          </span>
+          <div className="font-serif text-3xl sm:text-4xl text-amber-gold font-normal mt-1.5 tabular-nums">
+            ${(hedgeCost / 1_000).toFixed(1)}K
+          </div>
+          <div className="text-[11px] text-zinc-400 mt-1 font-mono">
+            Direct Hyperliquid fee + basis
           </div>
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-surface-2/60 text-center">
-        <p className="text-[11px] font-mono text-text-muted">
-          Note: Offset does not alter on-chain smart contract liquidation code. It executes off-chain perp hedges on Hyperliquid to financially absorb losses and keep protocols whole.
-        </p>
+      <div className="pt-2 text-center text-xs font-mono text-zinc-500">
+        Note: Offset does not alter on-chain smart contract liquidation code. It executes off-chain delta-neutral perp hedges on Hyperliquid to financially absorb losses and protect collateral.
       </div>
     </div>
   );
