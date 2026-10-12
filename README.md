@@ -1,4 +1,4 @@
-# Offset — Automated Liquidation-Defense Infrastructure
+# Offset — Automated Liquidation-Defense Infrastructure - (Under Development)
 
 > Risk-management firms tell protocols how much risk they should take. Offset is infrastructure that automatically takes the opposite market position when that risk materialises.
 
